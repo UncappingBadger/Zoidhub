@@ -43,12 +43,14 @@ public partial class MainWindow : Window
     private double _preFullscreenLeft, _preFullscreenTop, _preFullscreenWidth, _preFullscreenHeight;
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private CancellationTokenSource _renderCts = new();
+    private TaskCompletionSource<bool>? _startRenderTcs;
 
     public MainWindow()
     {
         InitializeComponent();
         CpuAffinity.PinCurrentProcess();
         _settings = _settingsService.Load();
+        MapDataService.RootOverride = _settings.MapDataRoot;
         UpdateSpeedButtons();
         _updateCheckService.Checked += result => Dispatcher.Invoke(() =>
         {
@@ -92,15 +94,7 @@ public partial class MainWindow : Window
             MapWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 WebMapHost, PayloadExtractor.WebMapDir, CoreWebView2HostResourceAccessKind.Allow);
 
-            // If nothing's rendered anywhere yet, still map the host at the path the bundled
-            // renderer WILL write to. SetVirtualHostNameToFolderMapping resolves individual FILE
-            // requests lazily, but - contrary to what an earlier version of this comment assumed
-            // - it throws immediately if the folder itself doesn't exist yet, so create it first.
-            var tileDir = MapDataService.FindMapHtmlDir(MapDataService.VanillaMapId)
-                ?? Path.Combine(MapDataService.GetOutputDir(MapDataService.VanillaMapId), "html");
-            Directory.CreateDirectory(tileDir);
-            MapWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                TileDataHost, tileDir, CoreWebView2HostResourceAccessKind.Allow);
+            RemapTileHost();
 
             MapWebView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
             MapWebView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
@@ -120,6 +114,23 @@ public partial class MainWindow : Window
                 "Windows install, get it from Microsoft's WebView2 download page.",
                 "ZoidHub", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>Maps TileDataHost at whatever folder MapDataService currently resolves to for the
+    /// active map. Re-callable, not just a one-time init step - SetVirtualHostNameToFolderMapping
+    /// replaces an existing mapping for the same host name rather than erroring, which is what
+    /// lets ChooseLocationButton_Click point the map at a freshly-picked drive without restarting
+    /// the app. If nothing's rendered anywhere yet, still map the host at the path the bundled
+    /// renderer WILL write to - SetVirtualHostNameToFolderMapping resolves individual file
+    /// requests lazily, but throws immediately if the folder itself doesn't exist yet, so create
+    /// it first.</summary>
+    private void RemapTileHost()
+    {
+        var tileDir = MapDataService.FindMapHtmlDir(MapDataService.VanillaMapId)
+            ?? Path.Combine(MapDataService.GetOutputDir(MapDataService.VanillaMapId), "html");
+        Directory.CreateDirectory(tileDir);
+        MapWebView.CoreWebView2?.SetVirtualHostNameToFolderMapping(
+            TileDataHost, tileDir, CoreWebView2HostResourceAccessKind.Allow);
     }
 
     /// <summary>WebView2 caches the WebMap content it's served (HTML/JS/CSS via
@@ -146,8 +157,32 @@ public partial class MainWindow : Window
 
     private async Task EnsureMapRenderedAsync()
     {
+        try
+        {
+            await EnsureMapRenderedInnerAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // The user picked a new map data location while this was sitting at the speed-choice
+            // prompt (see ChooseLocationButton_Click, which cancels _startRenderTcs) - a fresh
+            // call is already on its way in to restart against the new location, so just unwind
+            // quietly here instead of continuing toward the stale path captured below.
+        }
+    }
+
+    private async Task EnsureMapRenderedInnerAsync()
+    {
+        var outputPath = MapDataService.GetOutputDir(MapDataService.VanillaMapId);
         var existingDir = MapDataService.FindMapHtmlDir(MapDataService.VanillaMapId);
-        if (existingDir != null && MapRenderService.IsFloorRendered(existingDir, 0))
+
+        // The completion marker alone can't tell a healthy render from a broken one - a texture-
+        // unpack that silently produced nothing (see MapDataService.HasHealthyUnpackedTextures)
+        // still lets the render step exit 0 and get marked complete. Re-checking this on every
+        // launch, not just before a fresh render, is what lets an install that got bitten by that
+        // bug on an earlier version self-heal after updating, instead of staying broken forever
+        // because "a marker file exists" was good enough to skip re-rendering.
+        if (existingDir != null && MapRenderService.IsFloorRendered(existingDir, 0)
+            && MapDataService.HasHealthyUnpackedTextures(outputPath))
         {
             return; // already have real tiles (e.g. a previous run, or one still filling in floors)
         }
@@ -160,7 +195,36 @@ public partial class MainWindow : Window
             return;
         }
 
-        var outputPath = MapDataService.GetOutputDir(MapDataService.VanillaMapId);
+        // A real run measured live during this project's own testing: ~1.4M individual tiles at
+        // roughly 185KB average (sampled), landing north of 150GB total for a full 9-floor render
+        // even with omit_levels trimming the two deepest zoom levels - a genuinely large, easy to
+        // underestimate requirement for what looks like a small companion app. Worse, running out
+        // mid-render doesn't cleanly fail: pzmap2dzi's worker pool can hit "OSError: No space left
+        // on device" on individual tiles without the overall process exit code reflecting it (see
+        // RenderFloorsAsync's own fatal-error detection, added after hitting this for real) -
+        // catching it here, before starting, avoids burning hours of CPU on a render that can't
+        // actually finish correctly regardless of that detection existing.
+        const long MinRequiredFreeBytes = 150L * 1024 * 1024 * 1024;
+        var driveRoot = Path.GetPathRoot(outputPath);
+        if (driveRoot != null)
+        {
+            try
+            {
+                var freeBytes = new DriveInfo(driveRoot).AvailableFreeSpace;
+                if (freeBytes < MinRequiredFreeBytes)
+                {
+                    var freeGb = freeBytes / 1024.0 / 1024 / 1024;
+                    AppLogger.Log($"EnsureMapRenderedAsync: only {freeGb:0.#} GB free on {driveRoot} - refusing to start render (need ~150GB+).");
+                    ShowRenderStatus($"Not enough free disk space to render the map ({freeGb:0.#} GB free, ~150 GB+ needed).", 0, "");
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log($"EnsureMapRenderedAsync: disk space check failed, proceeding anyway: {ex.Message}");
+            }
+        }
+
         var renderer = new MapRenderService(pzRoot, outputPath, workerCount: MapRenderService.ResolveWorkerCount(_settings.RenderSpeed));
         if (!renderer.IsBundleAvailable())
         {
@@ -168,9 +232,79 @@ public partial class MainWindow : Window
             return;
         }
 
+        // A first-ever render can run for hours of real CPU load, so it waits for an explicit
+        // Start click rather than beginning the moment the game install is found - the user picks
+        // Light/Fast first (see the render status bar's speed buttons), then clicks Start.
+        _startRenderTcs = new TaskCompletionSource<bool>();
+        ShowSpeedChoicePrompt();
+        await _startRenderTcs.Task;
+
         _activeRenderer = renderer;
         _activeRenderTask = RunRenderPassAsync(renderer, _renderCts.Token);
         await _activeRenderTask;
+    }
+
+    // Shown even when the drive passing EnsureMapRenderedInnerAsync's disk-space check has plenty
+    // of room - "enough free space right now" isn't the same as "a drive the user actually wants
+    // ~150-250GB permanently used on" (e.g. a laptop's only SSD). Surfacing this before Start,
+    // not just when the check fails, is what actually lets someone redirect proactively instead
+    // of only finding out via ChooseLocationButton after committing an undesired drive.
+    private void ShowSpeedChoicePrompt()
+    {
+        var driveRoot = Path.GetPathRoot(MapDataService.GetOutputDir(MapDataService.VanillaMapId)) ?? "C:\\";
+        RenderStatusBar.Visibility = Visibility.Visible;
+        RenderStatusTitle.Text = $"This one-time render needs ~150GB+ free space and will be written to {driveRoot} - " +
+            "if you don't want that, click \"Change Location\" first. Then choose a speed and click Start.";
+        RenderProgressBar.Visibility = Visibility.Collapsed;
+        RenderStatusDetail.Visibility = Visibility.Collapsed;
+        StartRenderButton.Visibility = Visibility.Visible;
+    }
+
+    private void StartRenderButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartRenderButton.Visibility = Visibility.Collapsed;
+        RenderProgressBar.Visibility = Visibility.Visible;
+        RenderStatusDetail.Visibility = Visibility.Visible;
+        _startRenderTcs?.TrySetResult(true);
+    }
+
+    /// <summary>Lets someone whose OS drive doesn't (and won't ever) have the ~150-250GB a full
+    /// render needs point map data at a different drive/folder instead - added after a real user
+    /// hit exactly that wall on a C: drive too small to ever clear the pre-render disk check.
+    /// Only meaningful before a render is actually writing tiles (see the _activeRenderer guard
+    /// below) - already-rendered data doesn't move itself, and switching mid-render would just
+    /// mean two locations with partial data.</summary>
+    private void ChooseLocationButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeRenderer != null)
+        {
+            MessageBox.Show(
+                "Can't change the map data location while a render is in progress - wait for it " +
+                "to finish, or close and relaunch ZoidHub first.",
+                "ZoidHub", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Choose a folder for ZoidHub's map data (needs ~150-250 GB free)",
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        _settings.MapDataRoot = dialog.FolderName;
+        _settingsService.Save(_settings);
+        MapDataService.RootOverride = dialog.FolderName;
+        AppLogger.Log($"ChooseLocationButton_Click: map data root set to {dialog.FolderName}");
+
+        RemapTileHost();
+
+        // If EnsureMapRenderedInnerAsync is currently sitting at the speed-choice prompt awaiting
+        // _startRenderTcs, it already captured the OLD output path in a local variable before this
+        // ran - cancelling here (caught by EnsureMapRenderedAsync's wrapper) lets this fresh call
+        // re-evaluate everything, including the disk-space check, against the new location instead
+        // of silently continuing to render to the old one.
+        _startRenderTcs?.TrySetCanceled();
+        _ = EnsureMapRenderedAsync();
     }
 
     /// <summary>Runs unpack + the combined render, reporting progress to the status bar. Also
@@ -218,6 +352,13 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             AppLogger.Log($"RunRenderPassAsync failed: {ex.Message}");
+            _activeRenderer = null;
+            // Surfaced, not just logged - a texture-unpack failure used to fail silently here
+            // while the render step ran anyway and "succeeded" with black/missing tiles, which
+            // is exactly what a real user hit and reported with no indication anything was wrong.
+            // Full detail goes to the log above, not this single-line Auto-width status title -
+            // the actual diagnostic message can run to a full paragraph.
+            ShowRenderStatus("Map render failed - see the app log for details", 0, "");
         }
     }
 
@@ -273,8 +414,15 @@ public partial class MainWindow : Window
     {
         RenderStatusBar.Visibility = Visibility.Visible;
         RenderStatusTitle.Text = title;
+        // Always ensures the "actively rendering" sub-layout, not the pre-start speed-choice one -
+        // every caller of this represents real progress/an error, never the initial choice gate
+        // (that's ShowSpeedChoicePrompt). Redundant with StartRenderButton_Click's own toggle on
+        // the very first call after Start is clicked, but harmless/idempotent to repeat here.
+        RenderProgressBar.Visibility = Visibility.Visible;
         RenderProgressBar.Value = percent;
+        RenderStatusDetail.Visibility = Visibility.Visible;
         RenderStatusDetail.Text = detail;
+        StartRenderButton.Visibility = Visibility.Collapsed;
     }
 
     private void HideRenderStatus()

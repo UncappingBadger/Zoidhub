@@ -82,17 +82,69 @@ public class MapRenderService
         File.Exists(Path.Combine(mapHtmlDir, "base", $"layer{floor}.dzi")) &&
         File.Exists(Path.Combine(mapHtmlDir, "base", "map_info.json"));
 
-    private bool IsUnpacked() =>
-        Directory.Exists(Path.Combine(_outputPath, "texture")) &&
-        Directory.GetDirectories(Path.Combine(_outputPath, "texture")).Length > 0;
+    // See MapDataService.HasHealthyUnpackedTextures for why this checks actual file content
+    // instead of just "does a texture/ subfolder exist" - a real user hit exactly the silent
+    // empty-unpack failure that check exists to catch (reported via YouTube comment).
+    private bool IsUnpacked() => MapDataService.HasHealthyUnpackedTextures(_outputPath);
+
+    // Unpack writes into a staging folder first and is only moved into the real texture/default
+    // location as a single atomic Directory.Move once it's confirmed complete. This is what
+    // actually closes the gap the file-count check alone couldn't: a cancelled/interrupted unpack
+    // (a real user's game update mid-run, the app being closed, or - caught live during this
+    // project's own testing - simply switching the render speed mode while unpack is still
+    // running, which cancels and restarts the whole pass) can leave thousands of real files on
+    // disk despite being nowhere near complete, comfortably clearing any low file-count floor
+    // while still being missing whole texture categories (alphabetically-early ones, since the
+    // scheduler processes roughly in order) - exactly the "ground and some objects missing"
+    // symptom, reproduced firsthand mid-render in this project's own end-to-end verification.
+    // Staging means an interrupted run just leaves debris in .texture_staging, never something
+    // that could be mistaken for a finished unpack.
+    private string StagingDir => Path.Combine(_outputPath, ".texture_staging");
 
     public async Task EnsureUnpackedAsync(IProgress<RenderProgress> progress, CancellationToken ct)
     {
         if (IsUnpacked()) return;
 
         progress.Report(new RenderProgress { Stage = RenderStage.Unpacking, Message = "Reading game textures..." });
-        var confPath = WriteTempConf(minFloor: 0, maxFloorExclusive: 1, omitLevels: 2);
-        await RunPythonAsync(new[] { "main.py", "-c", confPath, "unpack" }, line => { }, ct);
+
+        var staging = StagingDir;
+        if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        Directory.CreateDirectory(staging);
+
+        var confPath = WriteTempConf(minFloor: 0, maxFloorExclusive: 1, omitLevels: 2, outputPathOverride: staging);
+        int exitCode;
+        bool hadFatalError;
+        try
+        {
+            (exitCode, hadFatalError) = await RunPythonAsync(new[] { "main.py", "-c", confPath, "unpack" },
+                line => AppLogger.Log($"[pzmap2dzi unpack] {line}"), ct);
+        }
+        catch (OperationCanceledException)
+        {
+            // Leave the staging debris - EnsureUnpackedAsync will just clear and redo it next
+            // time (a fresh Directory.Delete+CreateDirectory above), never mistake it for done.
+            throw;
+        }
+
+        if (exitCode != 0 || hadFatalError)
+        {
+            throw new InvalidOperationException($"Texture unpack failed (exit code {exitCode}) - see log for pzmap2dzi's own output.");
+        }
+        if (!MapDataService.HasHealthyUnpackedTextures(staging))
+        {
+            Directory.Delete(staging, recursive: true);
+            throw new InvalidOperationException(
+                "Texture unpack produced no usable output for the base game. This usually means your " +
+                "Project Zomboid install is on a build/branch whose texture pack files don't match what " +
+                "ZoidHub's bundled renderer expects (e.g. a different beta branch) - the map would render " +
+                "with a black background and missing ground/objects if this weren't caught here.");
+        }
+
+        var finalTextureDir = Path.Combine(_outputPath, "texture", "default");
+        Directory.CreateDirectory(Path.Combine(_outputPath, "texture"));
+        if (Directory.Exists(finalTextureDir)) Directory.Delete(finalTextureDir, recursive: true);
+        Directory.Move(Path.Combine(staging, "texture", "default"), finalTextureDir);
+        Directory.Delete(staging, recursive: true);
     }
 
     /// <summary>Renders floors [minFloor, maxFloorExclusive) in one pzmap2dzi invocation.</summary>
@@ -114,11 +166,19 @@ public class MapRenderService
             });
         }
 
-        var exitCode = await RunPythonAsync(new[] { "main.py", "-c", confPath, "render", "base" }, OnLine, ct);
-        if (exitCode != 0)
+        var (exitCode, hadFatalError) = await RunPythonAsync(new[] { "main.py", "-c", confPath, "render", "base" }, OnLine, ct);
+        if (exitCode != 0 || hadFatalError)
         {
-            AppLogger.Log($"MapRenderService: render floors [{minFloor},{maxFloorExclusive}) exited with code {exitCode}");
-            return;
+            // Throws rather than just logging and returning - the caller (RunRenderPassAsync)
+            // used to treat a silent return here as "nothing threw, must be fine" and would carry
+            // on to log "render complete" and hide the status bar even though MarkRenderComplete
+            // was never reached. A real run hit this live: pzmap2dzi's own worker pool ran out of
+            // disk space partway through ("OSError: No space left on device"), the tile that
+            // failed just never got written, and the overall process still exited 0 - so this
+            // specifically checks hadFatalError too, not just the exit code, which alone did not
+            // catch it.
+            throw new InvalidOperationException(
+                $"Map render failed (exit code {exitCode}{(hadFatalError ? ", errors were logged mid-render" : "")}) - see the app log for pzmap2dzi's own output.");
         }
 
         // Marks the WHOLE map complete, so only call this after rendering the full intended
@@ -133,7 +193,18 @@ public class MapRenderService
         MapDataService.MarkRenderComplete(htmlBaseDir);
     }
 
-    private async Task<int> RunPythonAsync(string[] args, Action<string> onOutputLine, CancellationToken ct)
+    // pzmap2dzi spawns a real multiprocessing worker pool (separate OS processes) to save tiles.
+    // A worker that hits an unhandled exception (an actual, real example: "OSError: [Errno 28] No
+    // space left on device" mid-render, hit live during this project's own testing) doesn't
+    // reliably make the main process's own exit code non-zero - the traceback still gets printed
+    // to stderr, but the overall pass can still report "done" while a chunk of tiles were never
+    // actually written. Exit code alone was already proven unreliable once (see the unpack
+    // staging fix); this is the same lesson applying to the render step too. A Python traceback
+    // always starts with this exact line, so scanning for it is a general, reliable "something
+    // actually went wrong" signal independent of what specifically failed.
+    private const string TracebackMarker = "Traceback (most recent call last)";
+
+    private async Task<(int ExitCode, bool HadFatalError)> RunPythonAsync(string[] args, Action<string> onOutputLine, CancellationToken ct)
     {
         var psi = new ProcessStartInfo
         {
@@ -151,8 +222,13 @@ public class MapRenderService
         CpuAffinity.PinProcessTree(process.Id);
         _ = PinProcessTreeRepeatedlyAsync(process.Id, ct);
 
+        var hadFatalError = false;
         var stdoutTask = ReadStreamSplitOnCrOrLfAsync(process.StandardOutput, onOutputLine, ct);
-        var stderrTask = ReadStreamSplitOnCrOrLfAsync(process.StandardError, line => AppLogger.Log($"[pzmap2dzi] {line}"), ct);
+        var stderrTask = ReadStreamSplitOnCrOrLfAsync(process.StandardError, line =>
+        {
+            AppLogger.Log($"[pzmap2dzi] {line}");
+            if (line.Contains(TracebackMarker)) hadFatalError = true;
+        }, ct);
 
         try
         {
@@ -170,7 +246,7 @@ public class MapRenderService
         }
 
         await Task.WhenAll(stdoutTask, stderrTask);
-        return process.ExitCode;
+        return (process.ExitCode, hadFatalError);
     }
 
     // pzmap2dzi's worker pool spawns progressively as it ramps up, not all in one instant, so a
@@ -215,10 +291,10 @@ public class MapRenderService
         if (sb.Length > 0) onLine(sb.ToString());
     }
 
-    private string WriteTempConf(int minFloor, int maxFloorExclusive, int omitLevels)
+    private string WriteTempConf(int minFloor, int maxFloorExclusive, int omitLevels, string? outputPathOverride = null)
     {
         var pzRootYaml = _pzRoot.Replace("\\", "/");
-        var outputYaml = _outputPath.Replace("\\", "/");
+        var outputYaml = (outputPathOverride ?? _outputPath).Replace("\\", "/");
 
         // steamapps/common/ProjectZomboid -> steamapps/workshop/content/108600 (108600 is PZ's
         // Steam App ID) - only actually needed when rendering a custom map, but harmless to

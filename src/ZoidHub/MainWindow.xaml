@@ -168,15 +168,28 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+                        <!-- MaxWidth+Wrap rather than pure Auto - a long message (e.g. the
+                             disk-space warning) would otherwise keep stretching this column and
+                             push the speed/location buttons on the right past the window's edge
+                             instead of wrapping to a second line. -->
                         <TextBlock Grid.Column="0" x:Name="RenderStatusTitle" Text="Rendering World - This may take some time"
-                                   FontWeight="Bold" FontSize="12" Foreground="#E0A030" VerticalAlignment="Center" Margin="0,0,14,0" />
+                                   FontWeight="Bold" FontSize="12" Foreground="#E0A030" VerticalAlignment="Center"
+                                   Margin="0,0,14,0" MaxWidth="320" TextWrapping="Wrap" />
                         <ProgressBar Grid.Column="1" x:Name="RenderProgressBar" Style="{StaticResource ThemedProgressBar}"
                                      VerticalAlignment="Center" Minimum="0" Maximum="100" Value="0" />
                         <TextBlock Grid.Column="2" x:Name="RenderStatusDetail" Text="" FontSize="11" Foreground="#AAAAAA"
                                    VerticalAlignment="Center" Margin="14,0,0,0" MinWidth="60" TextAlignment="Right" />
                         <!-- Render speed: trades CPU load for render time. Defaults to Light so a
-                             stranger's machine isn't pegged without them choosing that. -->
+                             stranger's machine isn't pegged without them choosing that. Chosen here,
+                             then physically started via StartRenderButton below - a first-ever render
+                             can run for hours of real CPU load, so it shouldn't just begin on its own
+                             the moment the game install is found. Still changeable mid-render (kept
+                             deliberately - MapRenderService.EnsureUnpackedAsync's atomic staging move
+                             is what actually guards against an interrupted unpack now, not avoiding
+                             the switch in the first place). -->
                         <Button Grid.Column="3" x:Name="SpeedLightButton" Content="Light (less CPU)"
                                 Style="{StaticResource ToolButton}" BorderThickness="1" BorderBrush="#404040"
                                 Margin="14,0,0,0" Click="SpeedMode_Click"
@@ -185,6 +198,19 @@
                                 Style="{StaticResource ToolButton}" BorderThickness="1" BorderBrush="#404040"
                                 Margin="6,0,0,0" Click="SpeedMode_Click"
                                 ToolTip="Use most CPU cores to render - faster, but heavier load while it's running" />
+                        <Button Grid.Column="5" x:Name="StartRenderButton" Content="Start Rendering"
+                                Style="{StaticResource ToolButton}" Background="#3D2F12" Foreground="#E0A030"
+                                BorderThickness="1" BorderBrush="#E0A030" Margin="10,0,0,0" Click="StartRenderButton_Click"
+                                ToolTip="Begin the one-time map render using the speed selected above" />
+                        <!-- A full render needs ~150-250GB - not every OS drive has (or will ever
+                             have) that much room, so this lets someone point map data at a
+                             different drive/folder instead of being stuck. Always available
+                             alongside the other render controls, not just after the disk-space
+                             check fails, so it can be used proactively too. -->
+                        <Button Grid.Column="6" x:Name="ChooseLocationButton" Content="Change Location..."
+                                Style="{StaticResource ToolButton}" BorderThickness="1" BorderBrush="#404040"
+                                Margin="6,0,0,0" Click="ChooseLocationButton_Click"
+                                ToolTip="Pick a different drive/folder to store the rendered map (needs ~150-250 GB free)" />
                     </Grid>
                 </Border>
             </Grid>
