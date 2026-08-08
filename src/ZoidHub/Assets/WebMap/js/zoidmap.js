@@ -1,4 +1,5 @@
 import { worldToImagePixel, imagePixelToWorld } from "./coordinates.js";
+import { MAP_SYMBOLS, PEN_COLORS } from "./mapSymbols.js";
 
 const TILES_HOST = "https://zoidmap.tiles";
 // Hardcoded until a map switcher exists on the C# side (see MapDataService's doc comment) -
@@ -10,7 +11,9 @@ const CATEGORY_COLORS = {
     "Bank / Post Office": "#5CE0A0", "Education": "#E0E05C", "Entertainment": "#E05CA0",
     "Warehouse / Industrial": "#A0A0A0", "Church": "#C0C0E0",
 };
-const MARKER_COLORS = ["#E0A030", "#5CA0E0", "#5CE07A", "#E05C5C", "#C05CE0", "#E0E05C"];
+const SYMBOL_ICON_PATH = "img/mapsymbols/";
+const SYMBOL_CATEGORIES = [...new Set(MAP_SYMBOLS.map(s => s.category))];
+const symbolById = Object.fromEntries(MAP_SYMBOLS.map(s => [s.id, s]));
 
 let viewer = null;
 let mapInfo = null;
@@ -23,6 +26,7 @@ let poiOverlayEls = [];
 let markerOverlayEls = [];
 let liveOverlayEl = null;
 let liveOverlayObj = null;
+let followMode = false;
 let editingMarkerId = null;
 let pendingNewMarkerPoint = null;
 
@@ -77,6 +81,10 @@ async function init() {
     viewer.addHandler("open", () => { renderPois(); renderMarkers(); if (liveOverlayObj) setLivePosition(liveOverlayObj); });
     viewer.addHandler("canvas-click", onCanvasClick);
     viewer.addHandler("animation-finish", () => { renderPois(); renderMarkers(); });
+    // Manually dragging the map means "let me look at something else" - following would just
+    // fight that by yanking the view back on the next position update, so treat a drag as
+    // switching Follow off. The user can turn it back on with the button when they want it again.
+    viewer.addHandler("canvas-drag", () => { if (followMode) setFollowMode(false); });
 
     buildFloorSwitcher();
     await loadPois();
@@ -88,6 +96,7 @@ async function init() {
     document.getElementById("zoom-out").addEventListener("click", () => viewer.viewport.zoomBy(1 / 1.4));
     document.getElementById("zoom-home").addEventListener("click", () => viewer.viewport.goHome());
     document.getElementById("add-marker-btn").addEventListener("click", toggleAddMarkerMode);
+    document.getElementById("follow-toggle-btn").addEventListener("click", () => setFollowMode(!followMode));
     document.getElementById("category-toggle-btn").addEventListener("click", () => {
         document.getElementById("category-panel").classList.toggle("visible");
     });
@@ -235,15 +244,25 @@ function renderMarkers() {
         if (vp.x < bounds.minX || vp.x > bounds.maxX || vp.y < bounds.minY || vp.y > bounds.maxY) continue;
 
         const el = document.createElement("div");
-        el.className = "map-pin custom";
-        el.style.background = m.color || "#E0A030";
+        el.className = "map-symbol";
+        const symbol = symbolById[m.icon] || symbolById["X"];
+        el.style.maskImage = `url("${SYMBOL_ICON_PATH}${symbol.file}")`;
+        el.style.webkitMaskImage = el.style.maskImage;
+        el.style.backgroundColor = m.color || "#212121";
         attachTooltip(el, m.label, m.note || "Custom marker");
+        // OpenSeadragon's own mouse tracker captures the pointer on pointerdown/mousedown to
+        // drive its pan/click gesture detection - once it has capture, the resulting synthetic
+        // "click" event target becomes its own canvas, not this element, so a plain click
+        // listener here never fires. Stopping propagation at pointerdown (before OSD's tracker
+        // sees it) keeps the gesture from starting on this element in the first place.
+        el.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+        el.addEventListener("mousedown", (ev) => ev.stopPropagation());
         el.addEventListener("click", (ev) => {
             ev.stopPropagation();
             openMarkerForm(m, vp);
         });
 
-        viewer.addOverlay({ element: el, location: vp, placement: OpenSeadragon.Placement.BOTTOM_LEFT });
+        viewer.addOverlay({ element: el, location: vp, placement: OpenSeadragon.Placement.CENTER });
         markerOverlayEls.push(el);
     }
 }
@@ -294,15 +313,59 @@ function openMarkerForm(marker, viewportPoint) {
     labelInput.value = marker ? marker.label : "";
     document.getElementById("marker-delete-btn").style.display = marker ? "block" : "none";
 
-    let selectedColor = marker ? marker.color : MARKER_COLORS[0];
+    let selectedColor = (marker && marker.color) || PEN_COLORS[0].hex;
+    let selectedIcon = (marker && marker.icon) || "X";
+    let activeCategory = (symbolById[selectedIcon] || symbolById["X"]).category;
+
+    const iconTabs = document.getElementById("marker-icon-tabs");
+    const iconGrid = document.getElementById("marker-icon-grid");
+
+    function renderIconGrid() {
+        iconGrid.innerHTML = "";
+        for (const symbol of MAP_SYMBOLS.filter(s => s.category === activeCategory)) {
+            const sw = document.createElement("div");
+            sw.className = "icon-swatch" + (symbol.id === selectedIcon ? " selected" : "");
+            sw.style.maskImage = `url("${SYMBOL_ICON_PATH}${symbol.file}")`;
+            sw.style.webkitMaskImage = sw.style.maskImage;
+            sw.title = symbol.id;
+            sw.addEventListener("click", () => {
+                selectedIcon = symbol.id;
+                iconGrid.querySelectorAll(".icon-swatch").forEach(s => s.classList.remove("selected"));
+                sw.classList.add("selected");
+            });
+            iconGrid.appendChild(sw);
+        }
+    }
+
+    function renderIconTabs() {
+        iconTabs.innerHTML = "";
+        for (const cat of SYMBOL_CATEGORIES) {
+            const tab = document.createElement("button");
+            tab.type = "button";
+            tab.className = "icon-category-tab" + (cat === activeCategory ? " active" : "");
+            tab.textContent = cat;
+            tab.addEventListener("click", () => {
+                activeCategory = cat;
+                iconTabs.querySelectorAll(".icon-category-tab").forEach(t => t.classList.remove("active"));
+                tab.classList.add("active");
+                renderIconGrid();
+            });
+            iconTabs.appendChild(tab);
+        }
+    }
+
+    renderIconTabs();
+    renderIconGrid();
+
     const colorRow = document.getElementById("marker-color-row");
     colorRow.innerHTML = "";
-    for (const c of MARKER_COLORS) {
+    for (const pen of PEN_COLORS) {
         const sw = document.createElement("div");
-        sw.className = "color-swatch" + (c === selectedColor ? " selected" : "");
-        sw.style.background = c;
+        sw.className = "color-swatch" + (pen.hex === selectedColor ? " selected" : "");
+        sw.style.background = pen.hex;
+        sw.title = pen.name;
         sw.addEventListener("click", () => {
-            selectedColor = c;
+            selectedColor = pen.hex;
             colorRow.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("selected"));
             sw.classList.add("selected");
         });
@@ -318,10 +381,11 @@ function openMarkerForm(marker, viewportPoint) {
             const existing = markers.find(m => m.id === editingMarkerId);
             existing.label = label;
             existing.color = selectedColor;
+            existing.icon = selectedIcon;
         } else {
             markers.push({
                 id: `m-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-                label, color: selectedColor,
+                label, color: selectedColor, icon: selectedIcon,
                 x: pendingNewMarkerPoint.x, y: pendingNewMarkerPoint.y, layer: pendingNewMarkerPoint.layer,
                 note: "",
             });
@@ -359,14 +423,17 @@ function positionLiveOverlay() {
 
 function setLivePosition(pos) {
     const pill = document.getElementById("live-pill");
+    const followBtn = document.getElementById("follow-toggle-btn");
     if (!pos || !pos.inGame) {
         pill.classList.remove("visible");
+        followBtn.style.display = "none";
         if (liveOverlayEl) { viewer.removeOverlay(liveOverlayEl); liveOverlayEl = null; }
         liveOverlayObj = null;
         return;
     }
 
     pill.classList.add("visible");
+    followBtn.style.display = "";
     pill.querySelector("span.label").textContent = pos.name || "Live";
     liveOverlayObj = pos;
 
@@ -384,6 +451,28 @@ function setLivePosition(pos) {
     } else {
         positionLiveOverlay();
     }
+
+    // Continuous following: every real position update (roughly once/second while tracking)
+    // re-centers, not just on window refocus - see setFollowMode for why a manual drag turns
+    // this back off rather than fighting the player for control of the view.
+    if (followMode) recenterOnLivePosition();
+}
+
+function setFollowMode(on) {
+    followMode = on;
+    document.getElementById("follow-toggle-btn").classList.toggle("active", on);
+    if (on) recenterOnLivePosition();
+}
+
+// Also used for the "left the map screen and came back" case (window alt-tabbed away/minimized,
+// then refocused) via the C# "recenterOnLive" message - recenters the viewport on the player's
+// last known position without touching zoom. panTo() only moves the viewport's center point; it
+// has no effect on zoom level at all.
+function recenterOnLivePosition() {
+    if (!liveOverlayObj || !viewer || viewer.world.getItemCount() === 0) return;
+    if (liveOverlayObj.layer !== currentLayer) return; // nothing to center on on this floor
+    const vp = worldToViewport(liveOverlayObj.x, liveOverlayObj.y, liveOverlayObj.layer);
+    viewer.viewport.panTo(vp);
 }
 
 // Host bridge: markers/POIs/live position come from the C# side after page load.
@@ -396,6 +485,8 @@ if (hostAvailable()) {
             renderMarkers();
         } else if (msg.type === "livePosition") {
             setLivePosition(msg.position);
+        } else if (msg.type === "recenterOnLive") {
+            recenterOnLivePosition();
         }
     });
 }

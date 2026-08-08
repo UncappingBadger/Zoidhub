@@ -1,0 +1,457 @@
+[
+ {
+  "id": "ArrowEast",
+  "file": "map_arroweast.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowNorth",
+  "file": "map_arrownorth.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowSouth",
+  "file": "map_arrowsouth.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowWest",
+  "file": "map_arrowwest.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowNorthWest",
+  "file": "map_arrownorthwest.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowNorthEast",
+  "file": "map_arrownortheast.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowSouthWest",
+  "file": "map_arrowsouthwest.png",
+  "category": "Locations"
+ },
+ {
+  "id": "ArrowSouthEast",
+  "file": "map_arrowsoutheast.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Apple",
+  "file": "map_apple.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Asterisk",
+  "file": "map_asterisk.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Axe",
+  "file": "map_axe.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Boat",
+  "file": "map_boat.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Burger",
+  "file": "map_burger.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Checkmark",
+  "file": "map_checkmark.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Club",
+  "file": "map_club.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Diamond",
+  "file": "map_diamond.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Heart",
+  "file": "map_heart.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Spade",
+  "file": "map_spade.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Cross",
+  "file": "map_cross.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "DollarSign",
+  "file": "map_dollarsign.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Exclamation",
+  "file": "map_exclamation.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "FaceDead",
+  "file": "map_facedead.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "FaceHappy",
+  "file": "map_facehappy.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "FaceSad",
+  "file": "map_facesad.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Fire",
+  "file": "map_firet.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Fish",
+  "file": "map_fish.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Garbage",
+  "file": "map_garbage.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Gears",
+  "file": "map_gears.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Gun",
+  "file": "map_gun.png",
+  "category": "Loot"
+ },
+ {
+  "id": "House",
+  "file": "map_house.png",
+  "category": "Locations"
+ },
+ {
+  "id": "KnifeFork",
+  "file": "map_knifefork.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Leaf",
+  "file": "map_leaf.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Lightning",
+  "file": "map_lightning.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Lock",
+  "file": "map_lock.png",
+  "category": "Locations"
+ },
+ {
+  "id": "MedCross",
+  "file": "map_medcross.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Moon",
+  "file": "map_moon.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Circle",
+  "file": "map_o.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Pill",
+  "file": "map_pill.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Question",
+  "file": "map_question.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Radiation",
+  "file": "map_radiation.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Skull",
+  "file": "map_skull.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Star",
+  "file": "map_star.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Sun",
+  "file": "map_sun.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Target",
+  "file": "map_target.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Tent",
+  "file": "map_tent.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Trap",
+  "file": "map_trap.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Waves",
+  "file": "map_waves.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Wrench",
+  "file": "map_wrench.png",
+  "category": "Loot"
+ },
+ {
+  "id": "X",
+  "file": "map_x.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Z",
+  "file": "map_z.png",
+  "category": "Locations"
+ },
+ {
+  "id": "VHS",
+  "file": "map_vhs.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Triangle",
+  "file": "map_triangle.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Tree",
+  "file": "map_tree.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Tire",
+  "file": "map_tire.png",
+  "category": "Loot"
+ },
+ {
+  "id": "SteeringWheel",
+  "file": "map_steeringwheel.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Snowflake",
+  "file": "map_snowflake.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Skyscraper",
+  "file": "map_skyscraper.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Shirt",
+  "file": "map_shirt.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Sheep",
+  "file": "map_sheep.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Rabbit",
+  "file": "map_rabbit.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Cow",
+  "file": "map_cow.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Deer",
+  "file": "map_deer.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Pig",
+  "file": "map_pig.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Chicken",
+  "file": "map_chicken.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Rodent",
+  "file": "map_rodent.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Raccoon",
+  "file": "map_raccoon.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Turkey",
+  "file": "map_turkey.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Bird",
+  "file": "map_bird.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Police",
+  "file": "map_police.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Pawprint",
+  "file": "map_pawprint.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Lightbulb",
+  "file": "map_lightbulb.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Ladder",
+  "file": "map_ladder.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Knife",
+  "file": "map_knife.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Key",
+  "file": "map_key.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Heartbroken",
+  "file": "map_heartbroken.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Hammer",
+  "file": "map_hammer.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Furnace",
+  "file": "map_furnace.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Fuel",
+  "file": "map_fuel.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Flower",
+  "file": "map_flower.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Eye",
+  "file": "map_eye.png",
+  "category": "Symbols"
+ },
+ {
+  "id": "Egg",
+  "file": "map_egg.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Door",
+  "file": "map_door.png",
+  "category": "Locations"
+ },
+ {
+  "id": "CrossedSwords",
+  "file": "map_crossedswords.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Columns",
+  "file": "map_columns.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Bullets",
+  "file": "map_bullets.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Book",
+  "file": "map_book.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Bomb",
+  "file": "map_bomb.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Bed",
+  "file": "map_bed.png",
+  "category": "Locations"
+ },
+ {
+  "id": "Baseball",
+  "file": "map_baseball.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Armor",
+  "file": "map_armor.png",
+  "category": "Loot"
+ },
+ {
+  "id": "Anvil",
+  "file": "map_anvil.png",
+  "category": "Loot"
+ }
+]

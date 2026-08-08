@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,15 @@ public partial class MainWindow : Window
     private const string WebMapHost = "zoidhub.app";
     private const string TileDataHost = "zoidmap.tiles";
     private const int MaxFloor = 8;
+
+    private const int WM_SYSCOMMAND = 0x112;
+    private const int SC_SIZE_BOTTOMRIGHT = 0xF008;
+
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     private readonly MarkerStore _markerStore = new();
     private readonly SettingsService _settingsService = new();
@@ -46,12 +56,22 @@ public partial class MainWindow : Window
         });
         _ = _updateCheckService.CheckAsync(); // silent on-launch check; failures/no-update are invisible by design
         Loaded += async (_, _) => await InitializeWebViewAsync();
+        // "Left the map screen and came back" - covers both alt-tabbing away/back and
+        // minimizing/restoring, since both fire Activated on return. Re-centers on wherever the
+        // player currently is rather than leaving the view wherever it was last panned to.
+        Activated += (_, _) => RecenterOnLivePosition();
         Closed += (_, _) =>
         {
             _renderCts.Cancel();
             _liveService?.Dispose();
             AppLogger.Log("ZoidHub closed");
         };
+    }
+
+    private void RecenterOnLivePosition()
+    {
+        if (LivePositionCheckBox.IsChecked != true) return;
+        PostMessage(new { type = "recenterOnLive" });
     }
 
     private async System.Threading.Tasks.Task InitializeWebViewAsync()
@@ -411,4 +431,12 @@ public partial class MainWindow : Window
 
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void ResizeGrip_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        ReleaseCapture();
+        SendMessage(hwnd, WM_SYSCOMMAND, (IntPtr)SC_SIZE_BOTTOMRIGHT, IntPtr.Zero);
+    }
 }

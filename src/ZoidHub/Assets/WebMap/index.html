@@ -19,6 +19,8 @@
 
   <div id="top-panel" class="panel">
     <div id="live-pill"><span class="dot"></span><span class="label">Live</span></div>
+    <button id="follow-toggle-btn" class="tool-btn" style="display:none"
+            title="Keep the map centered on you as you move - turns off automatically if you pan the map yourself">Follow</button>
     <button id="add-marker-btn" class="tool-btn" title="Click the map to drop a marker">+ Marker</button>
     <button id="category-toggle-btn" class="tool-btn" title="Filter points of interest">POI Filter</button>
   </div>
@@ -27,6 +29,8 @@
 
   <div id="marker-form">
     <input type="text" id="marker-label-input" placeholder="Marker name" maxlength="40" />
+    <div class="icon-category-tabs" id="marker-icon-tabs"></div>
+    <div class="icon-grid" id="marker-icon-grid"></div>
     <div class="color-row" id="marker-color-row"></div>
     <div class="btn-row">
       <button class="save-btn" id="marker-save-btn">Save</button>
