@@ -1,6 +1,6 @@
 # ZoidHub
 
-**ALPHA** — early testing build. Expect rough edges, missing polish, and things that don't work yet.
+**DEVELOPMENT DISCONTINUED TO THE PUBLIC**
 
 A companion map app for Project Zomboid. Renders a real, sprite-based interactive map directly from your own local game install, with points of interest, custom marking, and optional live in-game position tracking.
 
