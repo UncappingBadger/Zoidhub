@@ -1,0 +1,253 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: #161616;
+    font-family: Segoe UI, Arial, sans-serif;
+    color: #EEEEEE;
+    overflow: hidden;
+    user-select: none;
+}
+
+#osd-viewer {
+    position: absolute;
+    inset: 0;
+    background: #101010;
+}
+
+#status-banner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: #888888;
+    font-size: 14px;
+    max-width: 420px;
+    line-height: 1.6;
+    display: none;
+    z-index: 20;
+}
+#status-banner.visible { display: block; }
+
+.panel {
+    position: absolute;
+    background: #E61E1E1E;
+    border: 1px solid #404040;
+    border-radius: 8px;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* Floor switcher: top-left, vertical stack like an elevator panel, highest floor on top */
+#floor-panel {
+    top: 12px;
+    left: 12px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 4px;
+}
+.floor-btn {
+    width: 34px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    background: #2A2A2A;
+    color: #AAAAAA;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.floor-btn:hover { background: #3A3A3A; color: #EEEEEE; }
+.floor-btn.active { background: #3D2F12; color: #E0A030; border: 1px solid #E0A030; }
+
+/* Zoom controls: bottom-right, vertical stack */
+#zoom-panel {
+    bottom: 16px;
+    right: 16px;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+}
+.zoom-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: #2A2A2A;
+    color: #EEEEEE;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.zoom-btn:first-child { border-radius: 6px 6px 0 0; }
+.zoom-btn:last-child { border-radius: 0 0 6px 6px; }
+.zoom-btn:hover { background: #3A3A3A; }
+.zoom-btn.home { font-size: 14px; border-top: 1px solid #404040; border-bottom: 1px solid #404040; }
+
+/* Top toolbar: category filter toggle + Add Marker + live status pill */
+#top-panel {
+    top: 12px;
+    right: 12px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.tool-btn {
+    background: #2A2A2A;
+    color: #EEEEEE;
+    border: 1px solid #404040;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.tool-btn:hover { background: #3A3A3A; }
+.tool-btn.active { background: #3D2F12; color: #E0A030; border-color: #E0A030; }
+
+#live-pill {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #8FC9B4;
+    padding: 5px 10px;
+    border-radius: 12px;
+    background: #1E2E28;
+    border: 1px solid #2E4A3E;
+}
+#live-pill.visible { display: flex; }
+#live-pill .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4CD97B;
+    box-shadow: 0 0 6px #4CD97B;
+}
+
+/* Category filter dropdown */
+#category-panel {
+    top: 60px;
+    right: 12px;
+    padding: 10px;
+    display: none;
+    max-height: 60vh;
+    overflow-y: auto;
+    min-width: 190px;
+}
+#category-panel.visible { display: block; }
+.cat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #CCCCCC;
+}
+.cat-row input { accent-color: #E0A030; cursor: pointer; }
+.cat-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+/* Marker / POI overlays placed via OpenSeadragon addOverlay */
+.map-pin {
+    width: 14px;
+    height: 14px;
+    border-radius: 50% 50% 50% 0;
+    transform: translate(-7px, -14px) rotate(-45deg);
+    border: 1.5px solid #161616;
+    cursor: pointer;
+    /* No box-shadow here on purpose - with hundreds of these on screen at once, a per-element
+       drop shadow is real compositor cost during pan/zoom. Kept only on .live below, where
+       there's just one. */
+}
+.map-pin.poi { background: #5CA0E0; }
+.map-pin.custom { background: #E0A030; }
+.map-pin.live {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    transform: translate(-8px, -8px) rotate(0deg);
+    background: #4CD97B;
+    border: 2px solid #161616;
+    box-shadow: 0 0 8px #4CD97B;
+    animation: pulse 1.6s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 6px #4CD97B; }
+    50% { box-shadow: 0 0 14px #4CD97B; }
+}
+
+.pin-tooltip {
+    position: absolute;
+    transform: translate(-50%, -100%);
+    background: #242424;
+    border: 1px solid #404040;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: #EEEEEE;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 30;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+.pin-tooltip .cat { color: #888888; font-size: 10px; }
+
+/* Inline "add marker" form */
+#marker-form {
+    position: absolute;
+    z-index: 40;
+    background: #242424;
+    border: 1px solid #E0A030;
+    border-radius: 8px;
+    padding: 10px;
+    display: none;
+    width: 200px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+}
+#marker-form.visible { display: block; }
+#marker-form input[type=text] {
+    width: 100%;
+    box-sizing: border-box;
+    background: #1E1E1E;
+    border: 1px solid #404040;
+    color: #EEEEEE;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+#marker-form .color-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.color-swatch {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+}
+.color-swatch.selected { border-color: #EEEEEE; }
+#marker-form .btn-row { display: flex; gap: 6px; }
+#marker-form button {
+    flex: 1;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
+#marker-form .save-btn { background: #E0A030; color: #1A1400; }
+#marker-form .delete-btn { background: #6E2E2E; color: #FFAFAF; }
+#marker-form .cancel-btn { background: #2A2A2A; color: #AAAAAA; }

@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>ZoidHub Map</title>
+<link rel="stylesheet" href="css/zoidmap.css" />
+</head>
+<body>
+  <div id="osd-viewer"></div>
+  <div id="status-banner"></div>
+
+  <div id="floor-panel" class="panel"></div>
+
+  <div id="zoom-panel" class="panel">
+    <button id="zoom-in" class="zoom-btn" title="Zoom in">+</button>
+    <button id="zoom-home" class="zoom-btn home" title="Reset view">&#8962;</button>
+    <button id="zoom-out" class="zoom-btn" title="Zoom out">&minus;</button>
+  </div>
+
+  <div id="top-panel" class="panel">
+    <div id="live-pill"><span class="dot"></span><span class="label">Live</span></div>
+    <button id="add-marker-btn" class="tool-btn" title="Click the map to drop a marker">+ Marker</button>
+    <button id="category-toggle-btn" class="tool-btn" title="Filter points of interest">POI Filter</button>
+  </div>
+
+  <div id="category-panel" class="panel"></div>
+
+  <div id="marker-form">
+    <input type="text" id="marker-label-input" placeholder="Marker name" maxlength="40" />
+    <div class="color-row" id="marker-color-row"></div>
+    <div class="btn-row">
+      <button class="save-btn" id="marker-save-btn">Save</button>
+      <button class="delete-btn" id="marker-delete-btn" style="display:none">Delete</button>
+      <button class="cancel-btn" id="marker-cancel-btn">Cancel</button>
+    </div>
+  </div>
+
+  <script src="vendor/openseadragon/openseadragon.js"></script>
+  <script type="module" src="js/zoidmap.js"></script>
+</body>
+</html>

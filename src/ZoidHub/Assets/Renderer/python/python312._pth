@@ -1,0 +1,7 @@
+python312.zip
+.
+..\vendor
+..\pzmap2dzi
+
+# Uncomment to run site.main() automatically
+#import site

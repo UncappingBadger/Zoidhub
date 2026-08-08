@@ -1,0 +1,4 @@
+name=ZoidHub Bridge
+poster=poster.png
+id=ZoidHubBridge
+description=Writes your live player position to a local file so the ZoidHub companion map app can show it. Client-side only - no gameplay changes, no other players' data is read or sent anywhere.

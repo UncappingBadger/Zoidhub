@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>ZoidHub</AssemblyName>
+    <RootNamespace>ZoidHub</RootNamespace>
+    <Version>0.1.0-alpha</Version>
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+
+    <!-- Publish settings: one self-contained exe, no separate .NET install required -->
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+    <!-- Needed to walk the render subprocess tree (Python's multiprocessing workers are real
+         child OS processes with no built-in .NET API to enumerate by parent PID) - see
+         CpuAffinity.cs. -->
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Builds Assets\Payload.zip (WebMap + Renderer + LuaMod bundled together) before every
+       build, skipping the work if nothing changed. This is what makes ZoidHub.exe a genuinely
+       portable single file - everything it needs is embedded as one resource and self-extracts
+       to %LocalAppData% on first run (see PayloadExtractor.cs) instead of depending on a
+       companion folder sitting next to the exe. -->
+  <Target Name="BuildZoidHubPayload" BeforeTargets="BeforeBuild">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\build_payload.ps1&quot;" />
+  </Target>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\Payload.zip">
+      <LogicalName>ZoidHub.Payload.zip</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

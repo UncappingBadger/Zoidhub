@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+
+# Generated at build time by build_payload.ps1 - regenerated automatically, no need to track
+src/ZoidHub/Assets/Payload.zip
+
+# Redundant - already extracted into Assets/Renderer/python/, not needed at runtime
+src/ZoidHub/Assets/Renderer/python-embed.zip
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
+# Runtime-generated render configs (MapRenderService writes these into the bundled conf folder)
+src/ZoidHub/Assets/Renderer/conf/_zoidhub_conf_*.yaml
+tools/pzmap2dzi/conf/_zoidhub_conf_*.yaml
+tools/pzmap2dzi/conf/_smoketest_conf.yaml
+
+# Rendered map tile output - generated locally, easily multi-GB, never belongs in source control
+MapData/
+MapData_test/
+
+# Scratch/dev-only content not meant for the public repo
+tools/poi-reference/
+tools/render_log.txt
+
+# OS/editor cruft
+.vs/
+*.user
+src/ZoidHub/Assets/Renderer/conf/_smoketest_conf.yaml
