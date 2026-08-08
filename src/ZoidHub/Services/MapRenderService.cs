@@ -245,6 +245,17 @@ public class MapRenderService
             throw;
         }
 
+        // The main python.exe exiting on its own doesn't guarantee its multiprocessing worker
+        // pool did too - Windows doesn't tie a child process's lifetime to its parent, so if
+        // pzmap2dzi's own pool.join()/cleanup doesn't fully catch every worker, they're simply
+        // orphaned, not killed. Confirmed live: 15 workers were still running hours after a
+        // render logged "complete", idle but holding a lock on this app's own Payload folder.
+        // Kill(entireProcessTree: true) still finds them here even though `process` itself has
+        // already exited - Windows retains each child's recorded parent PID regardless of
+        // whether that parent is still alive, which is what the tree-walk matches on. Harmless
+        // no-op (caught below) on the common case where pzmap2dzi already cleaned up properly.
+        try { process.Kill(entireProcessTree: true); } catch { /* nothing left to kill */ }
+
         await Task.WhenAll(stdoutTask, stderrTask);
         return (process.ExitCode, hadFatalError);
     }
