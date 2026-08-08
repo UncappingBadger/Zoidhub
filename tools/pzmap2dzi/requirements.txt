@@ -1,0 +1,9 @@
+pynput
+slpp
+pyclipper
+pillow
+pyyaml
+flask
+waitress
+requests
+ruamel.yaml

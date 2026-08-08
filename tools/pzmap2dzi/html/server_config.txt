@@ -1,0 +1,2 @@
+save_path=%UserProfile%\zomboid\Saves
+host=0.0.0.0
