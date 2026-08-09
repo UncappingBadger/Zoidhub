@@ -86,6 +86,25 @@ html, body {
 .zoom-btn:hover { background: #3A3A3A; }
 .zoom-btn.home { font-size: 14px; border-top: 1px solid #404040; border-bottom: 1px solid #404040; }
 
+/* Coordinate readout: bottom-left, mirrors the zoom panel's bottom-right positioning.
+   Locked state (see zoidmap.js's "C" keybind) gets the same active-accent treatment used
+   elsewhere (.tool-btn.active, .floor-btn.active) so it's obvious at a glance the value is
+   frozen and safe to write down, not still following the cursor. */
+#coord-panel {
+    bottom: 16px;
+    left: 16px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-family: Consolas, "Courier New", monospace;
+    color: #AAAAAA;
+    white-space: nowrap;
+}
+#coord-panel.locked {
+    border-color: #E0A030;
+    background: #3D2F12;
+    color: #E0A030;
+}
+
 /* Top toolbar: category filter toggle + Add Marker + live status pill */
 #top-panel {
     top: 12px;

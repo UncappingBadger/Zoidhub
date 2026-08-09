@@ -29,6 +29,8 @@ let liveOverlayObj = null;
 let followMode = false;
 let editingMarkerId = null;
 let pendingNewMarkerPoint = null;
+let hoverWorld = null;
+let lockedWorld = null;
 
 function hostAvailable() {
     return !!(window.chrome && window.chrome.webview);
@@ -100,6 +102,8 @@ async function init() {
     document.getElementById("category-toggle-btn").addEventListener("click", () => {
         document.getElementById("category-panel").classList.toggle("visible");
     });
+    document.getElementById("osd-viewer").addEventListener("mousemove", onMapMouseMove);
+    document.addEventListener("keydown", onGlobalKeyDown);
 
     hideStatus();
 }
@@ -300,6 +304,71 @@ function onCanvasClick(event) {
 
     pendingNewMarkerPoint = { x: Math.round(wx), y: Math.round(wy), layer: currentLayer };
     openMarkerForm(null, viewportPoint);
+}
+
+// Live cursor -> world-coordinate readout, plus a "C" keybind to freeze ("lock") the last
+// hovered value and copy it to the clipboard - lets someone reading the map hand a teleport-
+// ready X,Y,Z straight to Project Zomboid's own coordinate-accepting admin/debug commands
+// without needing to eyeball pixel positions or do the iso-projection math by hand themselves.
+// Same worldX/worldY units IsoPlayer:getX()/getY() return in-game (see coordinates.js), and
+// "layer" here is already the plain integer floor - no conversion needed since the game's own
+// Z and this app's floor index are the same thing (see ZoidHubBridge.lua's math.floor(getZ())).
+function onMapMouseMove(event) {
+    if (lockedWorld || !viewer || viewer.world.getItemCount() === 0) return;
+    const rect = document.getElementById("osd-viewer").getBoundingClientRect();
+    const pixel = new OpenSeadragon.Point(event.clientX - rect.left, event.clientY - rect.top);
+    const viewportPoint = viewer.viewport.pointFromPixel(pixel);
+    const imagePoint = viewer.viewport.viewportToImageCoordinates(viewportPoint);
+    const [wx, wy] = imagePixelToWorld(mapInfo, imagePoint.x, imagePoint.y, currentLayer);
+    hoverWorld = { x: Math.round(wx), y: Math.round(wy), layer: currentLayer };
+    updateCoordReadout();
+}
+
+function updateCoordReadout() {
+    const el = document.getElementById("coord-readout");
+    const panel = document.getElementById("coord-panel");
+    if (lockedWorld) {
+        el.textContent = `LOCKED  X ${lockedWorld.x}  Y ${lockedWorld.y}  Z ${lockedWorld.layer}  - copied! Press C to unlock`;
+        panel.classList.add("locked");
+    } else if (hoverWorld) {
+        el.textContent = `X ${hoverWorld.x}  Y ${hoverWorld.y}  Z ${hoverWorld.layer}  - press C to lock`;
+        panel.classList.remove("locked");
+    } else {
+        el.textContent = "Hover the map for coordinates - press C to lock";
+        panel.classList.remove("locked");
+    }
+}
+
+function toggleCoordLock() {
+    if (lockedWorld) {
+        lockedWorld = null;
+        updateCoordReadout();
+        return;
+    }
+    if (!hoverWorld) return;
+    lockedWorld = { ...hoverWorld };
+    const text = `${lockedWorld.x},${lockedWorld.y},${lockedWorld.layer}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {
+            // The locked value is still shown on screen either way (readable/writable-down
+            // regardless), so a clipboard failure here isn't fatal - just quietly log it.
+            console.warn("ZoidHub: clipboard write failed, coordinates still shown on screen for manual copy.");
+        });
+    }
+    updateCoordReadout();
+}
+
+function onGlobalKeyDown(event) {
+    // Don't hijack "C"/Escape while the user is typing a marker label or anything else text-based.
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+    if (event.key === "c" || event.key === "C") {
+        toggleCoordLock();
+    } else if (event.key === "Escape" && lockedWorld) {
+        lockedWorld = null;
+        updateCoordReadout();
+    }
 }
 
 function openMarkerForm(marker, viewportPoint) {
