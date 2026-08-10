@@ -1,6 +1,6 @@
 # ZoidHub
 
-**v0.1 ALPHA** — early testing build. Expect rough edges, missing polish, and things that don't work yet.
+**ALPHA** — early testing build. Expect rough edges, missing polish, and things that don't work yet.
 
 A companion map app for Project Zomboid. Renders a real, sprite-based interactive map directly from your own local game install, with points of interest, custom marking, and optional live in-game position tracking.
 
@@ -27,12 +27,24 @@ A companion map app for Project Zomboid. Renders a real, sprite-based interactiv
 ## Installing
 
 1. Run `ZoidHub.exe` — it's a single portable file, no installer or dependencies. Copy it anywhere and run it.
-2. On first launch, it renders your map directly from your local Project Zomboid install. This happens once and only once; expect it to take a while and use meaningful CPU in the background (choose Light or Fast mode in the render status bar depending on how much you want it competing for resources while it works).
+2. On first launch, it renders your map directly from your local Project Zomboid install. This happens once and only once; expect it to take a while and use meaningful CPU in the background (choose Light or Fast mode in the render status bar depending on how much you want it competing for resources while it works). The render needs **~150-250GB of free disk space** — if your main drive doesn't have that much room, click **Change Location** before starting to redirect it to a different drive/folder.
 3. For live position tracking: click **Install Live Position Mod** in the title bar, then in Project Zomboid go to **Mods**, enable **ZoidHub Bridge**, and — important — make sure it's also enabled for your specific save (Project Zomboid tracks mods per-save separately from the global list). Restart the game fully after enabling it, then tick **Live Position** in ZoidHub.
+4. If ZoidHub can't find your Project Zomboid install automatically (see [Known limitations](#known-limitations) below), a **Browse for Game...** button appears so you can point it there manually.
+5. After a Project Zomboid update that changes the map, use **Re-render Map** in the title bar to regenerate it from your updated install — ZoidHub has no way to detect a game update on its own.
 
 ## Performance
 
 With over 1,100 points of interest available, having them all visible at once measurably hurts pan/zoom smoothness when zoomed out. **POIs are off by default for this reason** — turn on only the specific categories you're actually looking for via **POI Filter**, rather than all of them at once.
+
+## Known limitations
+
+- **Vanilla (base game) map only.** The storage layout and rendering pipeline already support custom/Workshop maps internally, but there's no UI to select one yet, and it's never been exercised end-to-end against a real custom map.
+- **Steam only, and only the first library found.** Game-install auto-detection reads Steam's own registry entries and library list; a GOG/Epic copy or an install Steam doesn't know about needs the manual **Browse for Game...** fallback (see Installing above). If Project Zomboid is installed in more than one Steam library, whichever one Steam lists first is used, not necessarily the one you actively play.
+- **No automatic "the map changed" detection.** A Project Zomboid update can change the map or its underlying texture packs at any time; ZoidHub has no way to notice this on its own. Use **Re-render Map** manually after an update if things look stale or wrong.
+
+## Getting help / reporting issues
+
+ZoidHub is a small, community side-project — if something's broken, [open an issue on GitHub](https://github.com/UncappingBadger/Zoidhub/issues) with as much detail as you can. The app log at `%AppData%\ZoidHub\logs\zoidhub.log` is usually the most useful thing to include; most of what ZoidHub does while running (render progress, errors, disk-space checks) gets written there.
 
 ## Attribution
 
