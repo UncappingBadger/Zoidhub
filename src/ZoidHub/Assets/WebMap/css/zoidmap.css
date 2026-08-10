@@ -203,9 +203,10 @@ html, body {
     50% { box-shadow: 0 0 14px #4CD97B; }
 }
 
-/* Custom markers: the actual Project Zomboid in-game map-symbol icons (white silhouette PNGs),
-   tinted via mask-image with the chosen pen color - the same technique the real game effectively
-   achieves by drawing these onto a colored "ink" layer. No box-shadow, same reasoning as .map-pin.
+/* Custom markers: original SVG glyphs (see mapSymbols.js) covering the same 91 concepts
+   Project Zomboid's own map-marking dialog offers, tinted via mask-image with the chosen
+   pen color - the same technique the real game effectively achieves by drawing these onto
+   a colored "ink" layer. No box-shadow, same reasoning as .map-pin.
    No manual transform here - unlike .map-pin (BOTTOM_LEFT anchor, needs manual correction),
    this uses OpenSeadragon.Placement.CENTER, which already centers the box on the point itself.
    A duplicate translate(-50%,-50%) here was silently offsetting the click hit-box away from the

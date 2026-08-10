@@ -28,7 +28,7 @@ After a Project Zomboid update changes the map, use **Re-render Map** to regener
 
 ## Attribution
 
-Project Zomboid is © [The Indie Stone](https://projectzomboid.com/). All game assets, sprites, and map data referenced or rendered by ZoidHub belong to them. ZoidHub reads and renders these from your own locally-owned copy of the game under the terms of their [EULA / Terms & Conditions](https://store.steampowered.com/eula/108600_eula_1), which permits non-commercial derivative use of game assets with attribution — this notice is that attribution. ZoidHub does not ship, host, or redistribute any Project Zomboid game files.
+Project Zomboid is © [The Indie Stone](https://projectzomboid.com/). All game assets, sprites, and map data referenced or rendered by ZoidHub belong to them. ZoidHub reads and renders these from your own locally-owned copy of the game under the terms of their [EULA / Terms & Conditions](https://store.steampowered.com/eula/108600_eula_1), which permits non-commercial derivative use of game assets with attribution — this notice is that attribution. ZoidHub does not ship, host, or redistribute any Project Zomboid game files — the custom-marker icons are original artwork covering the same categories the game's own map-marking tool offers, not extracted from the game itself.
 
 ZoidHub's map rendering pipeline is built on [pzmap2dzi](https://github.com/blind-coder/pzmap2dzi) by blind-coder (MIT License), and its map viewer uses [OpenSeadragon](https://openseadragon.github.io/) (BSD-3-Clause).
 
