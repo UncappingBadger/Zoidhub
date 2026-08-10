@@ -44,20 +44,34 @@ public partial class MainWindow : Window
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
     private CancellationTokenSource _renderCts = new();
     private TaskCompletionSource<bool>? _startRenderTcs;
+    private string? _pendingMissingRootWarning;
 
     public MainWindow()
     {
         InitializeComponent();
         CpuAffinity.PinCurrentProcess();
         _settings = _settingsService.Load();
-        MapDataService.RootOverride = _settings.MapDataRoot;
+        ApplyMapDataRootWithFallback();
         UpdateSpeedButtons();
         _updateCheckService.Checked += result => Dispatcher.Invoke(() =>
         {
             UpdateAvailableButton.Visibility = result.UpdateAvailable ? Visibility.Visible : Visibility.Collapsed;
         });
         _ = _updateCheckService.CheckAsync(); // silent on-launch check; failures/no-update are invisible by design
-        Loaded += async (_, _) => await InitializeWebViewAsync();
+        Loaded += async (_, _) =>
+        {
+            if (_pendingMissingRootWarning != null)
+            {
+                MessageBox.Show(
+                    $"ZoidHub is configured to store map data at:\n\n{_pendingMissingRootWarning}\n\n" +
+                    "That drive isn't available right now (disconnected external/removable drive?) - " +
+                    "using the default location for this session instead. Reconnect the drive and " +
+                    "relaunch, or click \"Change Location\" once the map loads to pick somewhere else for good.",
+                    "ZoidHub", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _pendingMissingRootWarning = null;
+            }
+            await InitializeWebViewAsync();
+        };
         // "Left the map screen and came back" - covers both alt-tabbing away/back and
         // minimizing/restoring, since both fire Activated on return. Re-centers on wherever the
         // player currently is rather than leaving the view wherever it was last panned to.
@@ -69,6 +83,50 @@ public partial class MainWindow : Window
             AppLogger.Log("ZoidHub closed");
         };
     }
+
+    // If AppSettings.MapDataRoot points at a drive/path that isn't there right now (a removed
+    // drive letter, not just an existing-but-empty folder - that case is already handled fine by
+    // EnsureMapRenderedAsync auto-prompting a fresh render), falling all the way through into
+    // RemapTileHost's Directory.CreateDirectory used to throw and get caught by
+    // InitializeWebViewAsync's generic catch, surfacing the same misleading "WebView2 couldn't
+    // start... Runtime isn't installed" message regardless of what actually went wrong. Checking
+    // this upfront and falling back to the default location for the session - rather than hard-
+    // failing - is what actually lets the app still start normally, including reaching "Change
+    // Location" to fix this for good, instead of a dead end.
+    private void ApplyMapDataRootWithFallback()
+    {
+        var root = _settings.MapDataRoot;
+        if (string.IsNullOrEmpty(root))
+        {
+            MapDataService.RootOverride = null;
+            return;
+        }
+
+        var driveRoot = Path.GetPathRoot(root);
+        if (!string.IsNullOrEmpty(driveRoot) && Directory.Exists(driveRoot))
+        {
+            MapDataService.RootOverride = root;
+            return;
+        }
+
+        AppLogger.Log($"ApplyMapDataRootWithFallback: configured location '{root}' isn't available right now - using the default location for this session.");
+        MapDataService.RootOverride = null;
+        _pendingMissingRootWarning = root;
+    }
+
+    // GameLocator.FindGameInstallDir is 100% Steam-registry-based, no fallback at all - a GOG/Epic
+    // copy or a manually-relocated install Steam doesn't know about gets nothing. Checked first
+    // (not as a fallback to GameLocator) since a manual override the user deliberately set via
+    // BrowseGameButton_Click should always win, even if a Steam install also happens to exist.
+    private string? ResolvePzInstallDir()
+    {
+        var manual = _settings.PzInstallDir;
+        if (!string.IsNullOrEmpty(manual) && IsValidPzInstallDir(manual)) return manual;
+        return GameLocator.FindGameInstallDir();
+    }
+
+    private static bool IsValidPzInstallDir(string dir) =>
+        Directory.Exists(dir) && File.Exists(Path.Combine(dir, "ProjectZomboid64.exe"));
 
     private void RecenterOnLivePosition()
     {
@@ -187,11 +245,12 @@ public partial class MainWindow : Window
             return; // already have real tiles (e.g. a previous run, or one still filling in floors)
         }
 
-        var pzRoot = GameLocator.FindGameInstallDir();
+        var pzRoot = ResolvePzInstallDir();
         if (pzRoot == null)
         {
             AppLogger.Log("EnsureMapRenderedAsync: Project Zomboid install not found - can't auto-render.");
             ShowRenderStatus("Couldn't find your Project Zomboid install - the map can't render yet.", 0, "");
+            BrowseGameButton.Visibility = Visibility.Visible;
             return;
         }
 
@@ -258,6 +317,7 @@ public partial class MainWindow : Window
         RenderProgressBar.Visibility = Visibility.Collapsed;
         RenderStatusDetail.Visibility = Visibility.Collapsed;
         StartRenderButton.Visibility = Visibility.Visible;
+        BrowseGameButton.Visibility = Visibility.Collapsed;
     }
 
     private void StartRenderButton_Click(object sender, RoutedEventArgs e)
@@ -304,6 +364,34 @@ public partial class MainWindow : Window
         // re-evaluate everything, including the disk-space check, against the new location instead
         // of silently continuing to render to the old one.
         _startRenderTcs?.TrySetCanceled();
+        _ = EnsureMapRenderedAsync();
+    }
+
+    /// <summary>Only shown once auto-detect (GameLocator.FindGameInstallDir, Steam-registry-only,
+    /// no fallback) has already failed - lets someone on a GOG/Epic copy or a manually-relocated
+    /// install point ZoidHub at it directly instead of being stuck with no way forward.</summary>
+    private void BrowseGameButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFolderDialog
+        {
+            Title = "Select your Project Zomboid install folder (contains ProjectZomboid64.exe)",
+        };
+        if (dialog.ShowDialog() != true) return;
+
+        if (!IsValidPzInstallDir(dialog.FolderName))
+        {
+            MessageBox.Show(
+                "That folder doesn't look like a Project Zomboid install - ProjectZomboid64.exe " +
+                "wasn't found there. Select the folder that directly contains it.",
+                "ZoidHub", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        _settings.PzInstallDir = dialog.FolderName;
+        _settingsService.Save(_settings);
+        AppLogger.Log($"BrowseGameButton_Click: manual PZ install dir set to {dialog.FolderName}");
+
+        BrowseGameButton.Visibility = Visibility.Collapsed;
         _ = EnsureMapRenderedAsync();
     }
 
@@ -423,6 +511,10 @@ public partial class MainWindow : Window
         RenderStatusDetail.Visibility = Visibility.Visible;
         RenderStatusDetail.Text = detail;
         StartRenderButton.Visibility = Visibility.Collapsed;
+        // Only the "couldn't find your Project Zomboid install" caller re-shows this - every
+        // other caller (progress updates, disk-space failure, render failure) should never carry
+        // it over from a previous call.
+        BrowseGameButton.Visibility = Visibility.Collapsed;
     }
 
     private void HideRenderStatus()

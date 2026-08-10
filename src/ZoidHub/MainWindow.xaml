@@ -170,6 +170,7 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <!-- MaxWidth+Wrap rather than pure Auto - a long message (e.g. the
                              disk-space warning) would otherwise keep stretching this column and
@@ -211,6 +212,12 @@
                                 Style="{StaticResource ToolButton}" BorderThickness="1" BorderBrush="#404040"
                                 Margin="6,0,0,0" Click="ChooseLocationButton_Click"
                                 ToolTip="Pick a different drive/folder to store the rendered map (needs ~150-250 GB free)" />
+                        <!-- Only shown once auto-detect (Steam-registry only, no fallback) has
+                             already failed - see EnsureMapRenderedInnerAsync/BrowseGameButton_Click. -->
+                        <Button Grid.Column="7" x:Name="BrowseGameButton" Content="Browse for Game..."
+                                Style="{StaticResource ToolButton}" BorderThickness="1" BorderBrush="#404040"
+                                Margin="6,0,0,0" Click="BrowseGameButton_Click" Visibility="Collapsed"
+                                ToolTip="Manually select your Project Zomboid install folder" />
                     </Grid>
                 </Border>
             </Grid>

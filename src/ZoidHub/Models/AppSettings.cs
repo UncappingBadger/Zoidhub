@@ -13,4 +13,10 @@ public class AppSettings
     /// have their whole OS drive smaller than that, so this lets someone point map data at a
     /// roomier drive instead. Set via MainWindow's "Change Location..." button.</summary>
     public string? MapDataRoot { get; set; }
+
+    /// <summary>Null means "trust GameLocator.FindGameInstallDir's Steam-registry auto-detect".
+    /// GameLocator has no fallback at all for GOG/Epic/manually-relocated installs Steam doesn't
+    /// know about, so this lets someone point ZoidHub at their install manually via MainWindow's
+    /// "Browse..." button (only shown once auto-detect has already failed).</summary>
+    public string? PzInstallDir { get; set; }
 }
