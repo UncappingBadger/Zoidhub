@@ -1,6 +1,6 @@
 # ZoidHub
 
-A companion map app for Project Zomboid. Renders a real, sprite-based interactive map directly from your own local game install, with points of interest, custom marking, and optional live in-game position tracking.
+A free companion map app for Project Zomboid. Renders a real, sprite-based interactive map directly from your own local game install, with points of interest, custom marking, and optional live in-game position tracking.
 
 **Not affiliated with The Indie Stone.** ZoidHub is an unofficial, third-party fan tool — not made by, endorsed by, or affiliated with The Indie Stone (TIS) in any way. Project Zomboid, its name, and its assets are the property of The Indie Stone. See [Attribution](#attribution) below.
 
