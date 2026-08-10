@@ -21,7 +21,7 @@ A companion map app for Project Zomboid. Renders a real, sprite-based interactiv
 ## Installing
 
 1. Run `ZoidHub.exe` — a single portable file, no installer or dependencies.
-2. On first launch, it renders your map from your local Project Zomboid install. This happens once; it can take a while and needs ~150-250GB of free disk space (use **Change Location** if your main drive doesn't have room). If ZoidHub can't find your install automatically, use **Browse for Game...** to point it there.
+2. On first launch, it renders your map from your local Project Zomboid install. This happens once and can take a while. ZoidHub asks for 150GB+ free disk space before starting as a safety margin, though a real render has been observed using closer to 50GB — use **Change Location** if your main drive doesn't have the room. If ZoidHub can't find your install automatically, use **Browse for Game...** to point it there.
 3. For live position tracking, click **Install Live Position Mod**, then enable **ZoidHub Bridge** in Project Zomboid's Mods menu for your save, restart the game, and tick **Live Position** in ZoidHub.
 
 After a Project Zomboid update changes the map, use **Re-render Map** to regenerate it.
