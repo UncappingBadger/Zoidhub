@@ -395,6 +395,57 @@ public partial class MainWindow : Window
         _ = EnsureMapRenderedAsync();
     }
 
+    /// <summary>No way exists (or realistically could exist, short of hashing the whole game
+    /// install on every launch) to detect "the game map actually changed" - this is the honest
+    /// alternative: wipes the current render entirely (both texture/ and html/, not just the
+    /// completion marker - a Project Zomboid update could change texture packs too, not just map
+    /// layout, so a stale partial texture set left over from a lighter-weight "just re-render on
+    /// top of what's there" approach could reintroduce the exact black/missing-object bug this
+    /// project already root-caused once) and re-triggers EnsureMapRenderedAsync fresh, which
+    /// naturally re-runs the disk-space check and speed-choice prompt exactly like a first-ever
+    /// render.</summary>
+    private void RerenderButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_activeRenderer != null)
+        {
+            MessageBox.Show(
+                "A render is already in progress - wait for it to finish before starting another.",
+                "ZoidHub", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            "This will delete the current map render and generate a fresh one from your current " +
+            "Project Zomboid install - useful after a game update changes the map. It can take " +
+            "hours and use significant CPU while running. Continue?",
+            "ZoidHub", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        if (result != MessageBoxResult.Yes) return;
+
+        var outputDir = MapDataService.GetOutputDir(_activeMapId);
+        AppLogger.Log($"RerenderButton_Click: deleting existing render at {outputDir} to force a fresh one.");
+        try
+        {
+            if (Directory.Exists(outputDir)) Directory.Delete(outputDir, recursive: true);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Log($"RerenderButton_Click: failed to delete existing render: {ex.Message}");
+            MessageBox.Show(
+                "Couldn't delete the existing map render - see the app log for details.",
+                "ZoidHub", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Directory.Delete above just removed the folder RemapTileHost's virtual host mapping
+        // still points at (the mapping itself doesn't need re-creating, only what's underneath
+        // it) - reload so the WebMap re-fetches map_info.json, gets a 404, and shows its own
+        // "tiles not found yet" status instead of a stale view of the now-deleted map.
+        Directory.CreateDirectory(Path.Combine(outputDir, "html"));
+        MapWebView.CoreWebView2?.Reload();
+
+        _ = EnsureMapRenderedAsync();
+    }
+
     /// <summary>Runs unpack + the combined render, reporting progress to the status bar. Also
     /// the resume path when the user flips the speed toggle mid-render (see SpeedMode_Click) -
     /// pzmap2dzi skips tiles it already finished, so restarting with a different worker count

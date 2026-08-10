@@ -111,6 +111,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -146,9 +147,19 @@
                             BorderBrush="#E0A030" BorderThickness="1" Margin="0,0,16,0" Visibility="Collapsed"
                             Click="UpdateAvailableButton_Click" ToolTip="A newer version of ZoidHub is on GitHub - click to open the release page" />
 
-                    <Button Grid.Column="4" Style="{StaticResource TitleBarButton}" Content="&#8862;" Click="Fullscreen_Click" FontSize="12" ToolTip="Toggle fullscreen" />
-                    <Button Grid.Column="5" Style="{StaticResource TitleBarButton}" Content="&#8212;" Click="Minimize_Click" ToolTip="Minimize" />
-                    <Button Grid.Column="6" Style="{StaticResource TitleBarButton}" Content="&#10005;" Click="Close_Click" Margin="0" ToolTip="Close" />
+                    <!-- No detection for "the game map actually changed" exists (or realistically
+                         could, short of hashing the whole game install) - this is the honest
+                         alternative: a manual way to force a fresh render after a Project Zomboid
+                         update, instead of the only previous option (manually deleting the
+                         AppData folder by hand). -->
+                    <Button Grid.Column="4" x:Name="RerenderButton" Content="Re-render Map"
+                            Style="{StaticResource ToolButton}" Margin="0,0,16,0"
+                            Click="RerenderButton_Click"
+                            ToolTip="Force a fresh map render - use this after a Project Zomboid update changes the map" />
+
+                    <Button Grid.Column="5" Style="{StaticResource TitleBarButton}" Content="&#8862;" Click="Fullscreen_Click" FontSize="12" ToolTip="Toggle fullscreen" />
+                    <Button Grid.Column="6" Style="{StaticResource TitleBarButton}" Content="&#8212;" Click="Minimize_Click" ToolTip="Minimize" />
+                    <Button Grid.Column="7" Style="{StaticResource TitleBarButton}" Content="&#10005;" Click="Close_Click" Margin="0" ToolTip="Close" />
                 </Grid>
 
                 <!-- Map -->
