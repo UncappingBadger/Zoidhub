@@ -112,6 +112,8 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -141,8 +143,25 @@
                               Margin="0,0,16,0" IsEnabled="False" Checked="LivePosition_Changed" Unchecked="LivePosition_Changed"
                               ToolTip="Show your current in-game position on the map. Requires the ZoidHubBridge mod installed and enabled in-game." />
 
+                    <!-- Mutually exclusive with Live Position (see ShareOnline_Changed) - a
+                         deliberate simplicity choice, not a technical necessity, since live
+                         position was never exposed to the LAN view in the first place (see
+                         LanShareServer - no position endpoint exists at all). -->
+                    <CheckBox Grid.Column="3" x:Name="ShareOnlineCheckBox" Content="Share Online"
+                              Style="{StaticResource ThemedCheckBox}" VerticalAlignment="Center"
+                              Margin="0,0,10,0" Checked="ShareOnline_Changed" Unchecked="ShareOnline_Changed"
+                              ToolTip="View this map from another device (phone/tablet) on the same WiFi/network - opens a small local web server, no internet access involved." />
+
+                    <!-- Doubles as the IP display - toggles its own Content between "Show IP" and
+                         the actual connect URL rather than adding a separate text element, to
+                         avoid the kind of row-width overflow this title bar has hit before. -->
+                    <Button Grid.Column="4" x:Name="ShowIpButton" Content="Show IP"
+                            Style="{StaticResource ToolButton}" Margin="0,0,16,0" Visibility="Collapsed"
+                            Click="ShowIpButton_Click"
+                            ToolTip="Show/hide the address to type into another device's browser" />
+
                     <!-- Hidden until UpdateCheckService reports a newer release; opens the GitHub release page. -->
-                    <Button Grid.Column="3" x:Name="UpdateAvailableButton" Content="Update Available"
+                    <Button Grid.Column="5" x:Name="UpdateAvailableButton" Content="Update Available"
                             Style="{StaticResource ToolButton}" Background="#3D2F12" Foreground="#E0A030"
                             BorderBrush="#E0A030" BorderThickness="1" Margin="0,0,16,0" Visibility="Collapsed"
                             Click="UpdateAvailableButton_Click" ToolTip="A newer version of ZoidHub is on GitHub - click to open the release page" />
@@ -152,14 +171,14 @@
                          alternative: a manual way to force a fresh render after a Project Zomboid
                          update, instead of the only previous option (manually deleting the
                          AppData folder by hand). -->
-                    <Button Grid.Column="4" x:Name="RerenderButton" Content="Re-render Map"
+                    <Button Grid.Column="6" x:Name="RerenderButton" Content="Re-render Map"
                             Style="{StaticResource ToolButton}" Margin="0,0,16,0"
                             Click="RerenderButton_Click"
                             ToolTip="Force a fresh map render - use this after a Project Zomboid update changes the map" />
 
-                    <Button Grid.Column="5" Style="{StaticResource TitleBarButton}" Content="&#8862;" Click="Fullscreen_Click" FontSize="12" ToolTip="Toggle fullscreen" />
-                    <Button Grid.Column="6" Style="{StaticResource TitleBarButton}" Content="&#8212;" Click="Minimize_Click" ToolTip="Minimize" />
-                    <Button Grid.Column="7" Style="{StaticResource TitleBarButton}" Content="&#10005;" Click="Close_Click" Margin="0" ToolTip="Close" />
+                    <Button Grid.Column="7" Style="{StaticResource TitleBarButton}" Content="&#8862;" Click="Fullscreen_Click" FontSize="12" ToolTip="Toggle fullscreen" />
+                    <Button Grid.Column="8" Style="{StaticResource TitleBarButton}" Content="&#8212;" Click="Minimize_Click" ToolTip="Minimize" />
+                    <Button Grid.Column="9" Style="{StaticResource TitleBarButton}" Content="&#10005;" Click="Close_Click" Margin="0" ToolTip="Close" />
                 </Grid>
 
                 <!-- Map -->
