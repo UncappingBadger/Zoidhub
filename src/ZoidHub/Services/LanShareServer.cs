@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -95,10 +96,17 @@ public class LanShareServer
                 var requestLine = await ReadLineAsync(stream, ct);
                 if (string.IsNullOrEmpty(requestLine)) return;
 
-                // Drain remaining headers - not needed for GET-only static serving, but the
-                // request has to be consumed for the response to be interpreted correctly.
+                // Only "If-Modified-Since" is actually used (for cache revalidation - see
+                // RouteAsync); everything else is parsed just enough to consume the request
+                // correctly, not acted on.
+                var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 string? headerLine;
-                while (!string.IsNullOrEmpty(headerLine = await ReadLineAsync(stream, ct))) { }
+                while (!string.IsNullOrEmpty(headerLine = await ReadLineAsync(stream, ct)))
+                {
+                    var colonIndex = headerLine.IndexOf(':');
+                    if (colonIndex <= 0) continue;
+                    headers[headerLine[..colonIndex].Trim()] = headerLine[(colonIndex + 1)..].Trim();
+                }
 
                 var parts = requestLine.Split(' ');
                 if (parts.Length < 2 || parts[0] != "GET")
@@ -110,7 +118,7 @@ public class LanShareServer
 
                 var rawPath = parts[1];
                 var path = Uri.UnescapeDataString(rawPath.Split('?')[0]);
-                await RouteAsync(stream, path, ct);
+                await RouteAsync(stream, path, headers, ct);
             }
             catch (Exception)
             {
@@ -121,12 +129,23 @@ public class LanShareServer
         }
     }
 
-    private async Task RouteAsync(NetworkStream stream, string path, CancellationToken ct)
+    // "Public" cache lifetime for static files (WebMap assets + rendered tiles) before a browser
+    // will even bother asking again - paired with Last-Modified/If-Modified-Since revalidation
+    // below rather than relied on alone, specifically so a Re-render Map (which genuinely changes
+    // tile file contents on disk, mtime and all) doesn't leave browsers showing stale cached tiles
+    // for a full day. A revalidation request is cheap (a 304 with no body) even within this
+    // window, so there's no real downside to a long max-age here.
+    private const int StaticCacheMaxAgeSeconds = 86400;
+
+    private async Task RouteAsync(NetworkStream stream, string path, Dictionary<string, string> headers, CancellationToken ct)
     {
         if (path == "/api/markers")
         {
+            // Never cached - this is what the remote view's 60s poll relies on actually being
+            // fresh each time, not a stale cached response from an earlier request.
             var json = JsonSerializer.Serialize(_getMarkers(), JsonOptions);
-            await WriteResponseAsync(stream, 200, "OK", "application/json", Encoding.UTF8.GetBytes(json), ct);
+            await WriteResponseAsync(stream, 200, "OK", "application/json", Encoding.UTF8.GetBytes(json), ct,
+                cacheControl: "no-store");
             return;
         }
 
@@ -162,17 +181,33 @@ public class LanShareServer
             return;
         }
 
+        // HTTP dates only carry 1-second resolution, so truncate the file's own mtime to whole
+        // seconds before comparing - otherwise sub-second differences would make it look "newer"
+        // than the client's cached copy on every single request and the 304 path would never hit.
+        var lastModified = new DateTime(File.GetLastWriteTimeUtc(fullPath).Ticks / TimeSpan.TicksPerSecond * TimeSpan.TicksPerSecond, DateTimeKind.Utc);
+        if (headers.TryGetValue("If-Modified-Since", out var ifModifiedSinceRaw)
+            && DateTime.TryParse(ifModifiedSinceRaw, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var ifModifiedSince)
+            && lastModified <= ifModifiedSince)
+        {
+            await WriteResponseAsync(stream, 304, "Not Modified", ContentTypeFor(fullPath), Array.Empty<byte>(), ct,
+                cacheControl: $"public, max-age={StaticCacheMaxAgeSeconds}", lastModified: lastModified);
+            return;
+        }
+
         var bytes = await File.ReadAllBytesAsync(fullPath, ct);
-        await WriteResponseAsync(stream, 200, "OK", ContentTypeFor(fullPath), bytes, ct);
+        await WriteResponseAsync(stream, 200, "OK", ContentTypeFor(fullPath), bytes, ct,
+            cacheControl: $"public, max-age={StaticCacheMaxAgeSeconds}", lastModified: lastModified);
     }
 
     private static async Task WriteResponseAsync(NetworkStream stream, int statusCode, string statusText,
-        string contentType, byte[] body, CancellationToken ct)
+        string contentType, byte[] body, CancellationToken ct, string? cacheControl = null, DateTime? lastModified = null)
     {
         var header = $"HTTP/1.1 {statusCode} {statusText}\r\n" +
                      $"Content-Type: {contentType}\r\n" +
                      $"Content-Length: {body.Length}\r\n" +
                      "Connection: close\r\n" +
+                     (cacheControl != null ? $"Cache-Control: {cacheControl}\r\n" : "") +
+                     (lastModified != null ? $"Last-Modified: {lastModified.Value.ToString("R", CultureInfo.InvariantCulture)}\r\n" : "") +
                      "\r\n";
         var headerBytes = Encoding.ASCII.GetBytes(header);
         await stream.WriteAsync(headerBytes, ct);
