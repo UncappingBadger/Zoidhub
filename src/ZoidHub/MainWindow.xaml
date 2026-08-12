@@ -143,13 +143,13 @@
                               Margin="0,0,16,0" IsEnabled="False" Checked="LivePosition_Changed" Unchecked="LivePosition_Changed"
                               ToolTip="Show your current in-game position on the map. Requires the ZoidHubBridge mod installed and enabled in-game." />
 
-                    <!-- Mutually exclusive with Live Position (see ShareOnline_Changed) - a
+                    <!-- Mutually exclusive with Live Position (see LanMode_Changed) - a
                          deliberate simplicity choice, not a technical necessity, since live
                          position was never exposed to the LAN view in the first place (see
                          LanShareServer - no position endpoint exists at all). -->
-                    <CheckBox Grid.Column="3" x:Name="ShareOnlineCheckBox" Content="Share Online"
+                    <CheckBox Grid.Column="3" x:Name="LanModeCheckBox" Content="LAN Mode"
                               Style="{StaticResource ThemedCheckBox}" VerticalAlignment="Center"
-                              Margin="0,0,10,0" Checked="ShareOnline_Changed" Unchecked="ShareOnline_Changed"
+                              Margin="0,0,10,0" Checked="LanMode_Changed" Unchecked="LanMode_Changed"
                               ToolTip="View this map from another device (phone/tablet) on the same WiFi/network - opens a small local web server, no internet access involved." />
 
                     <!-- Doubles as the IP display - toggles its own Content between "Show IP" and

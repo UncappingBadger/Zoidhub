@@ -653,11 +653,11 @@ public partial class MainWindow : Window
     /// <summary>Starts/stops the LAN-facing web server (LanShareServer) so another device on the
     /// same WiFi/network can view the map in a plain browser. Forces Live Position off and
     /// disables its checkbox while active - a deliberate simplicity choice (see the XAML comment
-    /// on ShareOnlineCheckBox), not because live position is actually exposed to the LAN view
+    /// on LanModeCheckBox), not because live position is actually exposed to the LAN view
     /// (it isn't - LanShareServer has no position endpoint at all).</summary>
-    private void ShareOnline_Changed(object sender, RoutedEventArgs e)
+    private void LanMode_Changed(object sender, RoutedEventArgs e)
     {
-        if (ShareOnlineCheckBox.IsChecked == true)
+        if (LanModeCheckBox.IsChecked == true)
         {
             if (LivePositionCheckBox.IsChecked == true) LivePositionCheckBox.IsChecked = false; // triggers LivePosition_Changed, tears down _liveService
             LivePositionCheckBox.IsEnabled = false;
@@ -670,7 +670,7 @@ public partial class MainWindow : Window
 
             ShowIpButton.Content = "Show IP";
             ShowIpButton.Visibility = Visibility.Visible;
-            AppLogger.Log($"ShareOnline_Changed: LAN sharing enabled on port {_lanShareServer.Port}.");
+            AppLogger.Log($"LanMode_Changed: LAN sharing enabled on port {_lanShareServer.Port}.");
         }
         else
         {
@@ -678,7 +678,7 @@ public partial class MainWindow : Window
             _lanShareServer = null;
             ShowIpButton.Visibility = Visibility.Collapsed;
             LivePositionCheckBox.IsEnabled = LuaBridgeInstaller.IsInstalled();
-            AppLogger.Log("ShareOnline_Changed: LAN sharing disabled.");
+            AppLogger.Log("LanMode_Changed: LAN sharing disabled.");
         }
     }
 
