@@ -98,6 +98,7 @@ async function init() {
     document.getElementById("zoom-out").addEventListener("click", () => viewer.viewport.zoomBy(1 / 1.4));
     document.getElementById("zoom-home").addEventListener("click", () => viewer.viewport.goHome());
     document.getElementById("add-marker-btn").addEventListener("click", toggleAddMarkerMode);
+    document.getElementById("clear-markers-btn").addEventListener("click", clearAllMarkers);
     document.getElementById("follow-toggle-btn").addEventListener("click", () => setFollowMode(!followMode));
     document.getElementById("category-toggle-btn").addEventListener("click", () => {
         document.getElementById("category-panel").classList.toggle("visible");
@@ -480,6 +481,17 @@ function closeMarkerForm() {
 
 function persistMarkers() {
     postToHost({ type: "markersChanged", markers });
+}
+
+// Scoped to the currently active map only (same per-map storage persistMarkers already uses on
+// the C# side, via MarkerStore.SaveForMap(_activeMapId, ...)) - useful when starting a fresh
+// game/save, so the player isn't stuck deleting old markers one at a time by hand.
+function clearAllMarkers() {
+    if (markers.length === 0) return;
+    if (!confirm(`Delete all ${markers.length} marker(s) on this map? This can't be undone.`)) return;
+    markers = [];
+    persistMarkers();
+    renderMarkers();
 }
 
 function positionLiveOverlay() {
