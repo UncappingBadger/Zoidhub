@@ -5,7 +5,11 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -14,12 +18,19 @@ using ZoidHub.Models;
 
 namespace ZoidHub.Services;
 
-/// <summary>Minimal, hand-rolled GET-only HTTP/1.1 server so another device on the same LAN (a
-/// phone/tablet) can view the map in a plain browser - "Share Online" in MainWindow. Deliberately
-/// not System.Net.HttpListener: binding that to anything other than localhost normally requires
+/// <summary>Minimal, hand-rolled GET-only HTTPS/1.1 server so another device on the same LAN (a
+/// phone/tablet) can view the map in a plain browser - "LAN Mode" in MainWindow. Deliberately not
+/// System.Net.HttpListener: binding that to anything other than localhost normally requires
 /// either admin rights or a one-time `netsh http add urlacl` reservation (it's backed by
 /// http.sys, which enforces this), which would be a bad first-run experience for a feature meant
 /// to be a simple checkbox. TcpListener has no such restriction.
+///
+/// HTTPS via a self-signed certificate (see GetOrCreateCertificate) - there's no way around a
+/// browser's "not private" warning for this, since a private LAN IP with no public domain name
+/// can never get a certificate a browser trusts out of the box (public CAs like Let's Encrypt
+/// won't issue for private IPs at all). The certificate is generated once and reused across
+/// restarts specifically so that's a one-time click-through per device, not a fresh warning every
+/// single session.
 ///
 /// Serves three things, all same-origin (no CORS needed since the remote browser loads
 /// everything from this one server): the static WebMap files at "/", the active map's rendered
@@ -35,6 +46,7 @@ public class LanShareServer
     private readonly Func<List<Marker>> _getMarkers;
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
+    private X509Certificate2? _certificate;
 
     public int Port { get; }
 
@@ -48,10 +60,11 @@ public class LanShareServer
 
     public void Start()
     {
+        _certificate = GetOrCreateCertificate();
         _cts = new CancellationTokenSource();
         _listener = new TcpListener(IPAddress.Any, Port);
         _listener.Start();
-        AppLogger.Log($"LanShareServer: listening on port {Port}.");
+        AppLogger.Log($"LanShareServer: listening on port {Port} (HTTPS, self-signed cert expires {_certificate.NotAfter:yyyy-MM-dd}).");
         _ = AcceptLoopAsync(_cts.Token);
     }
 
@@ -60,6 +73,8 @@ public class LanShareServer
         _cts?.Cancel();
         try { _listener?.Stop(); } catch { /* already stopped */ }
         _listener = null;
+        _certificate?.Dispose();
+        _certificate = null;
         AppLogger.Log("LanShareServer: stopped.");
     }
 
@@ -92,7 +107,14 @@ public class LanShareServer
             client.SendTimeout = 5000;
             try
             {
-                using var stream = client.GetStream();
+                using var networkStream = client.GetStream();
+                using var stream = new SslStream(networkStream, leaveInnerStreamOpen: false);
+                // SslProtocols.None lets the OS/.NET negotiate the best protocol both sides
+                // support, rather than pinning to a specific TLS version by hand - the current
+                // recommended approach rather than a maintenance liability as TLS versions age.
+                await stream.AuthenticateAsServerAsync(_certificate!, clientCertificateRequired: false,
+                    enabledSslProtocols: SslProtocols.None, checkCertificateRevocation: false);
+
                 var requestLine = await ReadLineAsync(stream, ct);
                 if (string.IsNullOrEmpty(requestLine)) return;
 
@@ -137,7 +159,7 @@ public class LanShareServer
     // window, so there's no real downside to a long max-age here.
     private const int StaticCacheMaxAgeSeconds = 86400;
 
-    private async Task RouteAsync(NetworkStream stream, string path, Dictionary<string, string> headers, CancellationToken ct)
+    private async Task RouteAsync(Stream stream, string path, Dictionary<string, string> headers, CancellationToken ct)
     {
         if (path == "/api/markers")
         {
@@ -199,7 +221,7 @@ public class LanShareServer
             cacheControl: $"public, max-age={StaticCacheMaxAgeSeconds}", lastModified: lastModified);
     }
 
-    private static async Task WriteResponseAsync(NetworkStream stream, int statusCode, string statusText,
+    private static async Task WriteResponseAsync(Stream stream, int statusCode, string statusText,
         string contentType, byte[] body, CancellationToken ct, string? cacheControl = null, DateTime? lastModified = null)
     {
         var header = $"HTTP/1.1 {statusCode} {statusText}\r\n" +
@@ -214,7 +236,7 @@ public class LanShareServer
         await stream.WriteAsync(body, ct);
     }
 
-    private static async Task<string?> ReadLineAsync(NetworkStream stream, CancellationToken ct)
+    private static async Task<string?> ReadLineAsync(Stream stream, CancellationToken ct)
     {
         var sb = new StringBuilder();
         var buffer = new byte[1];
@@ -229,6 +251,74 @@ public class LanShareServer
                 return sb.ToString();
             }
             sb.Append(c);
+        }
+    }
+
+    /// <summary>Loads the persisted self-signed certificate if one already exists and is still
+    /// comfortably valid, otherwise generates a fresh one and persists it - reused across
+    /// restarts specifically so a browser's "I trust this" decision (if someone chooses to
+    /// permanently trust it rather than click through the warning each time) survives too, not
+    /// just this one session. Includes the current LAN IP as a Subject Alternative Name; if the
+    /// IP ever changes (no longer static, moved networks, etc.) the stale cert simply gets
+    /// regenerated automatically next launch rather than silently kept.</summary>
+    private static X509Certificate2 GetOrCreateCertificate()
+    {
+        var certPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ZoidHub", "lanshare-cert.pfx");
+        var currentIp = FindLanIPv4Address();
+
+        if (File.Exists(certPath))
+        {
+            try
+            {
+                var existing = new X509Certificate2(certPath, (string?)null, X509KeyStorageFlags.Exportable);
+                var stillMatchesIp = currentIp == null
+                    || existing.GetNameInfo(X509NameType.DnsName, false) == currentIp
+                    || GetCertificateSanIPs(existing).Contains(currentIp);
+                if (existing.NotAfter > DateTime.Now.AddDays(30) && stillMatchesIp) return existing;
+                existing.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log($"LanShareServer: couldn't load existing cert, regenerating: {ex.Message}");
+            }
+        }
+
+        using var rsa = RSA.Create(2048);
+        var req = new CertificateRequest("CN=ZoidHub LAN Share", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+
+        var sanBuilder = new SubjectAlternativeNameBuilder();
+        sanBuilder.AddDnsName("localhost");
+        sanBuilder.AddIpAddress(IPAddress.Loopback);
+        if (currentIp != null && IPAddress.TryParse(currentIp, out var parsedIp)) sanBuilder.AddIpAddress(parsedIp);
+        req.CertificateExtensions.Add(sanBuilder.Build());
+        req.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, false));
+        req.CertificateExtensions.Add(new X509KeyUsageExtension(
+            X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, false));
+
+        // 10-year validity - this is a private, self-signed cert with no CA chain to worry about
+        // rotating; the goal is "don't make the user re-approve a new one every so often", not
+        // short-lived-cert hygiene that matters for publicly-trusted certificates.
+        using var generated = req.CreateSelfSigned(DateTimeOffset.Now.AddDays(-1), DateTimeOffset.Now.AddYears(10));
+        var exportable = new X509Certificate2(generated.Export(X509ContentType.Pfx), (string?)null, X509KeyStorageFlags.Exportable);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(certPath)!);
+        File.WriteAllBytes(certPath, exportable.Export(X509ContentType.Pfx));
+        AppLogger.Log($"LanShareServer: generated new self-signed certificate (IP: {currentIp ?? "unknown"}, expires {exportable.NotAfter:yyyy-MM-dd}).");
+        return exportable;
+    }
+
+    private static IEnumerable<string> GetCertificateSanIPs(X509Certificate2 cert)
+    {
+        foreach (var ext in cert.Extensions)
+        {
+            if (ext.Oid?.Value != "2.5.29.17") continue; // Subject Alternative Name OID
+            var formatted = ext.Format(false);
+            foreach (var part in formatted.Split(new[] { ", ", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var idx = part.IndexOf('=');
+                if (idx > 0) yield return part[(idx + 1)..].Trim();
+            }
         }
     }
 

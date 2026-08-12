@@ -697,7 +697,7 @@ public partial class MainWindow : Window
 
         var ip = LanShareServer.FindLanIPv4Address();
         ShowIpButton.Content = ip != null
-            ? $"http://{ip}:{_lanShareServer.Port}"
+            ? $"https://{ip}:{_lanShareServer.Port}"
             : "Couldn't find your network IP";
     }
 
