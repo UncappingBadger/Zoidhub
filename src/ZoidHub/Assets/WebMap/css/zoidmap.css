@@ -31,6 +31,27 @@ html, body {
 }
 #status-banner.visible { display: block; }
 
+/* LAN-mode-only notice (see zoidmap.js setupRemoteView) - never shown inside the PC's own
+   WebView2 instance, where none of this applies. Auto-hidden after 60s via a fade rather than an
+   abrupt disappearance, long enough to read once but not a permanent fixture blocking the map. */
+#lan-mode-notice {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    text-align: center;
+    padding: 8px 12px;
+    background: #6E1E1E;
+    color: #FFC7C7;
+    font-size: 13px;
+    font-weight: bold;
+    display: none;
+    transition: opacity 0.6s ease;
+}
+#lan-mode-notice.visible { display: block; }
+#lan-mode-notice.fade-out { opacity: 0; }
+
 .panel {
     position: absolute;
     background: #E61E1E1E;

@@ -11,6 +11,7 @@ A free companion map app for Project Zomboid. Renders a real, sprite-based inter
 - Lets you drop your own labeled, colored markers anywhere on the map.
 - Optional live position tracking via a small companion Lua mod (`ZoidHubBridge`) — shows your current in-game location on the map in real time.
 - Zoom, pan, and switch between building floors.
+- **LAN Mode** — view the map from another device (phone, tablet, laptop) on the same local network, no second monitor needed. See [LAN Mode](#lan-mode) below.
 
 ## What it doesn't do
 
@@ -25,6 +26,14 @@ A free companion map app for Project Zomboid. Renders a real, sprite-based inter
 3. For live position tracking, click **Install Live Position Mod**, then enable **ZoidHub Bridge** in Project Zomboid's Mods menu for your save, restart the game, and tick **Live Position** in ZoidHub.
 
 After a Project Zomboid update changes the map, use **Re-render Map** to regenerate it.
+
+## LAN Mode
+
+Tick **LAN Mode** to view the map from another device on the same WiFi/network — click **Show IP** for the address to enter in a browser on that device. It's entirely local: nothing goes over the internet, and nothing outside your own network can reach it.
+
+Markers you place sync to the remote view read-only (refreshing every 60 seconds) so it always stays in sync with the host. **Live position tracking and marker editing are only available on the host PC** — this is expected behavior, not a bug: LAN Mode is for viewing the map from a second device, not a second control point. Turning on LAN Mode disables Live Position on the host for the same reason.
+
+Having trouble connecting? See [LAN Mode Troubleshooting](docs/LAN_MODE_TROUBLESHOOTING.md).
 
 ## Attribution
 

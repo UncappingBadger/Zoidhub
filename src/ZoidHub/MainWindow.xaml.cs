@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     // Hardcoded until map selection exists - see MapDataService's doc comment for the plan.
     private readonly string _activeMapId = MapDataService.VanillaMapId;
     private LivePositionService? _liveService;
+    private LanShareServer? _lanShareServer;
     private MapRenderService? _activeRenderer;
     private Task? _activeRenderTask;
     private bool _isFullscreen;
@@ -80,6 +81,7 @@ public partial class MainWindow : Window
         {
             _renderCts.Cancel();
             _liveService?.Dispose();
+            _lanShareServer?.Stop();
             AppLogger.Log("ZoidHub closed");
         };
     }
@@ -646,6 +648,57 @@ public partial class MainWindow : Window
             _liveService = null;
             PostMessage(new { type = "livePosition", position = (PlayerPosition?)null });
         }
+    }
+
+    /// <summary>Starts/stops the LAN-facing web server (LanShareServer) so another device on the
+    /// same WiFi/network can view the map in a plain browser. Forces Live Position off and
+    /// disables its checkbox while active - a deliberate simplicity choice (see the XAML comment
+    /// on LanModeCheckBox), not because live position is actually exposed to the LAN view
+    /// (it isn't - LanShareServer has no position endpoint at all).</summary>
+    private void LanMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (LanModeCheckBox.IsChecked == true)
+        {
+            if (LivePositionCheckBox.IsChecked == true) LivePositionCheckBox.IsChecked = false; // triggers LivePosition_Changed, tears down _liveService
+            LivePositionCheckBox.IsEnabled = false;
+
+            _lanShareServer = new LanShareServer(
+                PayloadExtractor.WebMapDir,
+                () => MapDataService.FindMapHtmlDir(_activeMapId),
+                () => _markerStore.LoadForMap(_activeMapId));
+            _lanShareServer.Start();
+
+            ShowIpButton.Content = "Show IP";
+            ShowIpButton.Visibility = Visibility.Visible;
+            AppLogger.Log($"LanMode_Changed: LAN sharing enabled on port {_lanShareServer.Port}.");
+        }
+        else
+        {
+            _lanShareServer?.Stop();
+            _lanShareServer = null;
+            ShowIpButton.Visibility = Visibility.Collapsed;
+            LivePositionCheckBox.IsEnabled = LuaBridgeInstaller.IsInstalled();
+            AppLogger.Log("LanMode_Changed: LAN sharing disabled.");
+        }
+    }
+
+    private void ShowIpButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lanShareServer == null) return;
+
+        // Toggling back to the plain label re-hides the address rather than leaving it
+        // permanently on screen - the whole point of gating it behind a button (see the user's
+        // own framing: "for security") is that it isn't sitting visible by default.
+        if (ShowIpButton.Content as string != "Show IP")
+        {
+            ShowIpButton.Content = "Show IP";
+            return;
+        }
+
+        var ip = LanShareServer.FindLanIPv4Address();
+        ShowIpButton.Content = ip != null
+            ? $"https://{ip}:{_lanShareServer.Port}"
+            : "Couldn't find your network IP";
     }
 
     private void UpdateAvailableButton_Click(object sender, RoutedEventArgs e)

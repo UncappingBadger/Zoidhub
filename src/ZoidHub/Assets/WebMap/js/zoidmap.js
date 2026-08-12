@@ -1,7 +1,6 @@
 import { worldToImagePixel, imagePixelToWorld } from "./coordinates.js";
 import { MAP_SYMBOLS, PEN_COLORS } from "./mapSymbols.js";
 
-const TILES_HOST = "https://zoidmap.tiles";
 // Hardcoded until a map switcher exists on the C# side (see MapDataService's doc comment) -
 // POI data is per-map, named data/poi-<mapId>.json, same "vanilla" key used everywhere else.
 const ACTIVE_MAP_ID = "vanilla";
@@ -36,6 +35,14 @@ function hostAvailable() {
     return !!(window.chrome && window.chrome.webview);
 }
 
+// Inside WebView2, tiles are served via SetVirtualHostNameToFolderMapping at this fixed virtual
+// hostname (see MainWindow.RemapTileHost). A remote browser (LAN sharing - see LanShareServer)
+// has no such virtual host; it loads everything from one real origin, with tiles under "/tiles"
+// on that same server - so it just uses its own origin instead.
+function tilesHost() {
+    return hostAvailable() ? "https://zoidmap.tiles" : `${location.origin}/tiles`;
+}
+
 function postToHost(message) {
     if (hostAvailable()) window.chrome.webview.postMessage(message);
 }
@@ -57,7 +64,7 @@ function hideStatus() {
 
 async function init() {
     try {
-        mapInfo = await fetchJson(`${TILES_HOST}/base/map_info.json`);
+        mapInfo = await fetchJson(`${tilesHost()}/base/map_info.json`);
     } catch (e) {
         showStatus("Map tiles not found yet.\nThe isometric render is still generating in the background - this view will populate once it's done.");
         return;
@@ -106,6 +113,11 @@ async function init() {
     document.getElementById("osd-viewer").addEventListener("mousemove", onMapMouseMove);
     document.addEventListener("keydown", onGlobalKeyDown);
 
+    // Remote LAN-sharing view (see LanShareServer) - no WebView2 host to message, so markers
+    // come from a plain HTTP fetch instead, and there's deliberately no way to add/edit/delete
+    // from here at all - editing only ever happens from the PC's own WebView2 instance.
+    if (!hostAvailable()) setupRemoteView();
+
     hideStatus();
 }
 
@@ -129,7 +141,7 @@ function setLayer(layer) {
     document.querySelectorAll(".floor-btn").forEach(b => {
         b.classList.toggle("active", Number(b.dataset.layer) === layer);
     });
-    const dziUrl = `${TILES_HOST}/base/layer${layer}.dzi`;
+    const dziUrl = `${tilesHost()}/base/layer${layer}.dzi`;
     const hadImage = viewer.world.getItemCount() > 0;
     const previousBounds = hadImage ? viewer.viewport.getBounds() : null;
 
@@ -492,6 +504,38 @@ function clearAllMarkers() {
     markers = [];
     persistMarkers();
     renderMarkers();
+}
+
+// Read-only marker sync for the remote LAN view - the PC's WebView2 instance is the only place
+// markers are ever created/edited/deleted (see clearAllMarkers/openMarkerForm), this just mirrors
+// whatever's currently saved. 60s poll interval per the user's own preference - frequent enough
+// that a marker placed on the PC shows up on the tablet without a manual page reload, without
+// hammering the server.
+async function fetchRemoteMarkers() {
+    try {
+        markers = await fetchJson("/api/markers");
+        renderMarkers();
+    } catch (e) {
+        // Transient fetch failure (PC briefly unreachable, server restarting, etc.) - keep
+        // showing the last successfully loaded markers rather than clearing them.
+    }
+}
+
+function setupRemoteView() {
+    document.getElementById("add-marker-btn").style.display = "none";
+    document.getElementById("clear-markers-btn").style.display = "none";
+    fetchRemoteMarkers();
+    setInterval(fetchRemoteMarkers, 60000);
+
+    // 60s on screen (long enough to actually read), then a fade rather than an abrupt cut so it
+    // doesn't feel like a glitch - display:none only applied once the fade finishes, so it isn't
+    // left as an invisible-but-still-there element sitting over the map.
+    const notice = document.getElementById("lan-mode-notice");
+    notice.classList.add("visible");
+    setTimeout(() => {
+        notice.classList.add("fade-out");
+        notice.addEventListener("transitionend", () => notice.classList.remove("visible"), { once: true });
+    }, 60000);
 }
 
 function positionLiveOverlay() {
