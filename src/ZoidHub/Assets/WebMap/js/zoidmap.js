@@ -526,6 +526,16 @@ function setupRemoteView() {
     document.getElementById("clear-markers-btn").style.display = "none";
     fetchRemoteMarkers();
     setInterval(fetchRemoteMarkers, 60000);
+
+    // 60s on screen (long enough to actually read), then a fade rather than an abrupt cut so it
+    // doesn't feel like a glitch - display:none only applied once the fade finishes, so it isn't
+    // left as an invisible-but-still-there element sitting over the map.
+    const notice = document.getElementById("lan-mode-notice");
+    notice.classList.add("visible");
+    setTimeout(() => {
+        notice.classList.add("fade-out");
+        notice.addEventListener("transitionend", () => notice.classList.remove("visible"), { once: true });
+    }, 60000);
 }
 
 function positionLiveOverlay() {
